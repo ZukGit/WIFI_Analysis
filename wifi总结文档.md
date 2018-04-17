@@ -1813,3 +1813,1112 @@ public class ScanningSettings extends SettingsPreferenceFragment {
 </PreferenceScreen>
 ```
 
+
+
+## WIFI UA13分析
+###WIFI UA13 操作列
+<img src="img/7.png" width = "25%" height="25%"/> 
+1. **UA编号**   UA13
+1. **UA说明**  **当前已连接网络Preference的点击事件**
+1. **UA触发函数**   在  /packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java函数 addConnectedAccessPointPreference
+   pref.setFragment(WifiNetworkDetailsFragment.class.getName());设置了当前Preference 点击是 显示的 Fragment    WifiSettings的onPreferenceTreeClick 为点击响应函数
+1. **UA字符可选值**    
+1. **UA布局及ID**     LongPressAccessPointPreference 的布局    private int mLayoutResId = com.android.internal.R.layout.preference;/frameworks/base/core/res/res/layout/preference.xml
+1. **代码Key**     
+1. **代码可选值  **
+1. **数据库Key **  
+1. **数据库可选值 **   
+1. **SP的Key**  
+1. **SP可选值**  
+1. **UA操作后UI显示类**    WifiNetworkDetailsFragment 
+1. **UA触发函数所在类**    WifiNetworkDetailsFragment
+---
+
+
+###WIFI UA13 代码分析
+```
+ /packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java 
+ 
+ public class WifiSettings extends RestrictedSettingsFragment implements Indexable, WifiTracker.WifiListener, AccessPointListener, WifiDialog.WifiDialogListener {
+        
+private static final String PREF_KEY_CONNECTED_ACCESS_POINTS = "connected_access_point";
+private PreferenceCategory  mConnectedAccessPointPreferenceCategory；
+private PreferenceCategory mAccessPointsPreferenceCategory;
+private LinkablePreference mStatusMessagePreference; // 用来显示提示 显示  要查看可用网络，请打开WLAN   或者  正在搜索WLAN网络...   等一些提示信息的 Preference
+
+
+  @Override
+    public void onCreate(Bundle icicle) {
+        addPreferencesFromResource(R.xml.wifi_settings);
+         // 实例化mConnectedAccessPointPreferenceCategory 已连接WIFI热点 PreferenceCategory
+            mConnectedAccessPointPreferenceCategory =  (PreferenceCategory) findPreference(PREF_KEY_CONNECTED_ACCESS_POINTS);
+             
+            
+        Context prefContext = getPrefContext();
+        mAddPreference = new Preference(prefContext);
+        mAddPreference.setIcon(R.drawable.ic_menu_add_inset);
+        mAddPreference.setTitle(R.string.wifi_add_network);
+        mStatusMessagePreference = new LinkablePreference(prefContext);  // 创建实例化   LinkablePreference  mStatusMessagePreference
+       
+       }
+    
+    
+    
+ /packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java 
+  @Override
+    public boolean onPreferenceTreeClick(Preference preference) {
+        // If the preference has a fragment set, open that
+        if (preference.getFragment() != null) { 
+//  如果当前 从 preference获取的 Fragment 不为 空  那么  调用   super.onPreferenceTreeClick(preference)  
+//  connectPref.setFragment(WifiNetworkDetailsFragment.class.getName())  由于此前程序设置了  已连接热点的 Preference 的fragment 为  WifiNetworkDetailsFragment  所以 程序 调用到这里
+            preference.setOnPreferenceClickListener(null);
+            return super.onPreferenceTreeClick(preference);
+        }
+
+        if (preference instanceof LongPressAccessPointPreference) {
+            mSelectedAccessPoint = ((LongPressAccessPointPreference) preference).getAccessPoint();
+            if (mSelectedAccessPoint == null) {
+                return false;
+            }
+            if (mSelectedAccessPoint.isActive()) {
+                return super.onPreferenceTreeClick(preference);
+            }
+            /**
+             * Bypass dialog and connect to unsecured networks, or previously connected saved
+             * networks, or Passpoint provided networks.
+             */
+            WifiConfiguration config = mSelectedAccessPoint.getConfig();
+            if (mSelectedAccessPoint.getSecurity() == AccessPoint.SECURITY_NONE) {
+                mSelectedAccessPoint.generateOpenNetworkConfig();
+                connect(mSelectedAccessPoint.getConfig(), mSelectedAccessPoint.isSaved());
+            } else if (mSelectedAccessPoint.isSaved() && config != null
+                    && config.getNetworkSelectionStatus() != null
+                    && config.getNetworkSelectionStatus().getHasEverConnected()) {
+                connect(config, true /* isSavedNetwork */);
+            } else if (mSelectedAccessPoint.isPasspoint()) {
+                // Access point provided by an installed Passpoint provider, connect using
+                // the associated config.
+                connect(config, true /* isSavedNetwork */);
+            } else {
+                showDialog(mSelectedAccessPoint, WifiConfigUiBase.MODE_CONNECT);
+            }
+        } else if (preference == mAddPreference) {
+            onAddNetworkPressed();
+        } else {
+            return super.onPreferenceTreeClick(preference);
+        }
+        return true;
+    }
+    
+############
+/frameworks/base/core/java/android/preference/PreferenceFragment.java    WifiSettings.java  的 爷爷类
+    public boolean onPreferenceTreeClick(PreferenceScreen preferenceScreen, Preference preference) {
+        if (preference.getFragment() != null && getActivity() instanceof OnPreferenceStartFragmentCallback) {
+            return ((OnPreferenceStartFragmentCallback)getActivity()【SettingsActivity】).onPreferenceStartFragment(this, preference); // 调用 onPreferenceStartFragment
+        }
+        return false;
+    }
+    
+    
+/packages/apps/Settings/src/com/android/settings/SettingsActivity.java
+public class SettingsActivity extends SettingsDrawerActivity
+        implements PreferenceManager.OnPreferenceTreeClickListener,
+        PreferenceFragment.OnPreferenceStartFragmentCallback【由于当前的Activity SettingsActivity 实现了  PreferenceFragment.OnPreferenceStartFragmentCallback 接口】,
+        // 所以 调用到了 SettingsActivity 方法实现的接口方法 onPreferenceStartFragment
+        ButtonBarHandler, FragmentManager.OnBackStackChangedListener {
+
+
+    @Override
+    public boolean onPreferenceStartFragment(PreferenceFragment caller, Preference pref) {
+        startPreferencePanel(caller, pref.getFragment(), pref.getExtras(), -1, pref.getTitle(), null, 0);  //
+        return true;
+    }
+    
+    
+    public void startPreferencePanel(Fragment caller, String fragmentClass, Bundle args,int titleRes, CharSequence titleText, Fragment resultTo, int resultRequestCode) {
+        String title = null;
+        if (titleRes < 0) {
+            if (titleText != null) {
+                title = titleText.toString();
+            } else {
+                title = "";
+            }
+        }
+        // 完成 跳转
+        Utils.startWithFragment(this, fragmentClass, args, resultTo, resultRequestCode,titleRes, title, mIsShortcut, mMetricsFeatureProvider.getMetricsCategory(caller));
+    }
+    }
+    
+    
+    /packages/apps/Settings/src/com/android/settings/Utils.java
+    
+public static void startWithFragment(Context context, String fragmentName, Bundle args,Fragment resultTo, int resultRequestCode, int titleResId,CharSequence title, int metricsCategory) {
+        startWithFragment(context, fragmentName, args, resultTo, resultRequestCode,null /* titleResPackageName */, titleResId, title, false /* not a shortcut */, metricsCategory);
+    }
+    
+    
+-------------
+    private void setOffMessage() {
+        mStatusMessagePreference.setText(title, description, clickListener);
+        removeConnectedAccessPointPreference();
+        mAccessPointsPreferenceCategory.removeAll();
+    // 当当前WLAN 不可用时  把 mStatusMessagePreference 放到 mAccessPointsPreferenceCategory中
+        mAccessPointsPreferenceCategory.addPreference(mStatusMessagePreference);
+    }
+    
+    
+    
+        public static void startWithFragment(Context context, String fragmentName, Bundle args,Fragment resultTo, int resultRequestCode, int titleResId, CharSequence title, boolean isShortcut, int metricsCategory) {
+        Intent intent = onBuildStartFragmentIntent(context, fragmentName, args, null /* titleResPackageName */, titleResId, title, isShortcut, metricsCategory);
+        if (resultTo == null) {
+            context.startActivity(intent);  // intent 启动Activity 
+        } else {
+            resultTo.getActivity().startActivityForResult(intent, resultRequestCode);  // intent 启动Activity 
+        }
+    }
+       
+       
+------------
+           private void updateAccessPointPreferences() {
+           
+           
+         final List<AccessPoint> accessPoints = mWifiTracker.getAccessPoints();  //从 mWifiTracker 获得AccessPoint ▲2     UA完成后分析Framework时继续往下分析
+         boolean hasAvailableAccessPoints = false;
+        mAccessPointsPreferenceCategory.removePreference(mStatusMessagePreference); // 把提示信息 LinkablePreference mStatusMessagePreference 移除
+        cacheRemoveAllPrefs(mAccessPointsPreferenceCategory);  //  把当前的Preference 缓存到 cache中  然后 填充新的 Prefernce
+        
+        
+        
+         // 如果显示已连接WIFI项 那么 index就从1开始 因为index=0 就是已连接的WIFI热点，如果 不显示已连接WIIF网络  那么index=0开始遍历 显示所有的扫描热点 
+        int index =configureConnectedAccessPointPreferenceCategory(accessPoints) ? 1 : 0;
+        int numAccessPoints = accessPoints.size();
+        for (; index < numAccessPoints; index++) {
+           
+            AccessPoint accessPoint = accessPoints.get(index);  // 获得对应索引位置的 AccessPoint
+            // Ignore access points that are out of range.
+            if (accessPoint.isReachable()) {  //  // 当accessPoint的 mRssi 有被赋予正常值时  就表示 当前AccessPoint 可达
+                String key = accessPoint.getBssid();  // 获得类似mac地址的 bssid 字符串   private String bssid;
+                if (TextUtils.isEmpty(key)) {
+                    key = accessPoint.getSsidStr();  // 如果 bssid为空  那么 就获取 热点的 ssid 热点名为 key
+                }
+                hasAvailableAccessPoints = true;
+                // 依据 key 来从 cacheRemoveAllPrefs 方法 填充的  ArrayMap<String, Preference> mPreferenceCache 获取Preference 并强制转换为 LongPressAccessPointPreference  
+                LongPressAccessPointPreference pref = (LongPressAccessPointPreference) getCachedPreference(key);
+                if (pref != null) {
+                    pref.setOrder(index);  // 设置 Preference 的显示位置
+                    continue;  // 重新开始  for循环
+                }
+                
+                // 如果从 cache中取得的 Preference为空  那么 就需要新建 new LongPressAccessPointPreference
+                LongPressAccessPointPreference preference = createLongPressActionPointPreference(accessPoint);
+                preference.setKey(key);  //  设置 key 索引 
+                preference.setOrder(index);  // 设置 显示的位置 索引 
+                if (mOpenSsid != null && mOpenSsid.equals(accessPoint.getSsidStr())
+                        && !accessPoint.isSaved()
+                        && accessPoint.getSecurity() != AccessPoint.SECURITY_NONE) {  // mOpenSsid 保存的是已连接网络的 ssid
+                    onPreferenceTreeClick(preference);  // 如果当前的preference 就是 需要连接的网络  那么 触发 onPreferenceTreeClick 事件 进行连接
+                    mOpenSsid = null;
+                }
+                mAccessPointsPreferenceCategory.addPreference(preference);  // 把该 LongPressAccessPointPreference 添加到  mAccessPointsPreferenceCategory
+                accessPoint.setListener(WifiSettings.this);  // accessPoint添加监听类为 WifiSettings
+                preference.refresh();
+            }  //   if (accessPoint.isReachable())----end
+        }  // for end
+        removeCachedPrefs(mAccessPointsPreferenceCategory);  //   把 ArrayMap<String, Preference> mPreferenceCache; 置空 mPreferenceCache = null;
+        mAddPreference.setOrder(index); 
+        mAccessPointsPreferenceCategory.addPreference(mAddPreference); // for循环 结束后 添加 mAddPreference 这个  添加 网络的 mPreference
+        setAdditionalSettingsSummaries();
+
+        if (!hasAvailableAccessPoints) {  //如果 没有搜索到 任何  可达 的 AccessPoint 那么 就显示 正在搜索WLAN网络… 
+            setProgressBarVisible(true);
+            Preference pref = new Preference(getPrefContext());
+            pref.setSelectable(false);
+            pref.setSummary(R.string.wifi_empty_list_wifi_on); // <string name="wifi_empty_list_wifi_on" >"正在搜索WLAN网络…"</string>
+            pref.setOrder(index++);
+            pref.setKey(PREF_KEY_EMPTY_WIFI_LIST);
+            mAccessPointsPreferenceCategory.addPreference(pref);
+        } else {
+            // Continuing showing progress bar for an additional delay to overlap with animation
+            getView().postDelayed(mHideProgressBarRunnable, 1700 /* delay millis */);  // 有搜索到WIFI 那么就一直显示 ProgressBar动画   间隔 1.7秒
+        }
+    }
+    
+ ##############
+ /frameworks/base/packages/SettingsLib/src/com/android/settingslib/wifi/AccessPoint.java
+     public static final int UNREACHABLE_RSSI = Integer.MIN_VALUE;
+     private int mRssi = UNREACHABLE_RSSI;
+    
+     public boolean isReachable() {
+        return mRssi != UNREACHABLE_RSSI; // 当mRssi 有被赋予正常值时  就表示 当前AccessPoint 可达
+    }
+    }
+    
+    AccessPointListener mAccessPointListener;
+    
+        public void setListener(AccessPointListener listener) {
+        mAccessPointListener = listener;
+    }
+    
+
+    public interface AccessPointListener {
+        void onAccessPointChanged(AccessPoint accessPoint);
+        void onLevelChanged(AccessPoint accessPoint);
+    }
+    
+ ##############
+/packages/apps/Settings/src/com/android/settings/SettingsPreferenceFragment.java    
+
+ private ArrayMap<String, Preference> mPreferenceCache;
+ 
+     protected void cacheRemoveAllPrefs(PreferenceGroup group) {
+        mPreferenceCache = new ArrayMap<String, Preference>();
+        final int N = group.getPreferenceCount();
+        for (int i = 0; i < N; i++) {
+            Preference p = group.getPreference(i);
+            if (TextUtils.isEmpty(p.getKey())) {
+                continue;
+            }
+            mPreferenceCache.put(p.getKey(), p);
+        }
+    }
+    
+    
+     protected void removeCachedPrefs(PreferenceGroup group) {
+        for (Preference p : mPreferenceCache.values()) {
+            group.removePreference(p);
+        }
+        mPreferenceCache = null;
+    }
+ 
+ ##############
+ /packages/apps/Settings/src/com/android/settings/SettingsPreferenceFragment.java  
+  private ArrayMap<String, Preference> mPreferenceCache;
+  
+    protected Preference getCachedPreference(String key) {
+        return mPreferenceCache != null ? mPreferenceCache.remove(key) : null;  // 依据之前的 cacheRemoveAllPrefs() 方法 填充了 mPreferenceCache， 现在从这个cache 取出对应的 Preference
+    }
+    
+    
+ ##############
+  /packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java
+        private LongPressAccessPointPreference createLongPressActionPointPreference( AccessPoint accessPoint) {
+        return new LongPressAccessPointPreference(accessPoint, getPrefContext(), mUserBadgeCache,false, R.drawable.ic_wifi_signal_0, this);
+    }
+    
+    
+----------------
+/packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java
+
+     // Configure the ConnectedAccessPointPreferenceCategory and return true if the Category was shown.
+     //配置当前已连接的热点  如果函数 configureConnectedAccessPointPreferenceCategory() 返回为true  那么就显示 mConnectedAccessPointPreferenceCategory 这个以连接 PreferenceCategory
+     // 如果 返回为 false 那么就不显示已连接 WIFI 这个 PreferenceCategory
+    private boolean configureConnectedAccessPointPreferenceCategory( List<AccessPoint> accessPoints) {
+        if (accessPoints.size() == 0) {  // 如果List<AccessPoint> accessPoints 大小为0  说明 没有搜到WIFI网络 也就没有已连接网络
+            removeConnectedAccessPointPreference();  // 去除 mConnectedAccessPointPreferenceCategory.removeAll();  并设置为不可见
+            return false;
+        }
+
+        AccessPoint connectedAp = accessPoints.get(0);   // 获取排序第一的  index=0 的那么热点 AccessPoint   
+        if (!connectedAp.isActive()) {  // 如果该热点不是isActive 不是可用  那么 也去掉mConnectedAccessPointPreferenceCategory显示 
+            removeConnectedAccessPointPreference();
+            return false;
+        }
+
+        // Is the preference category empty?
+        if (mConnectedAccessPointPreferenceCategory.getPreferenceCount() == 0) { // 如果当前 mConnectedAccessPointPreferenceCategory 没有 Preference 那么就添加 当前的 Preference 返回 true
+            addConnectedAccessPointPreference(connectedAp);  // 新建 当前已连接的  LongPressAccessPointPreference
+            return true;
+        }
+
+        // Is the previous currently connected SSID different from the new one?
+        if (!((AccessPointPreference)
+                mConnectedAccessPointPreferenceCategory.getPreference(0))
+                        .getAccessPoint().getSsidStr().equals(
+                                connectedAp.getSsidStr())) {  // 如果当前mConnectedAccessPointPreferenceCategory已经有了prefernce 那么需要对比  把旧的移除 添加新的
+            removeConnectedAccessPointPreference();  
+            addConnectedAccessPointPreference(connectedAp);
+            return true;
+        }
+
+        // Else same AP is connected, simply refresh the connected access point preference
+        // (first and only access point in this category).
+        ((LongPressAccessPointPreference) mConnectedAccessPointPreferenceCategory.getPreference(0))
+                .refresh();
+        return true;
+    }
+    
+}
+
+###########
+/packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java
+    private void removeConnectedAccessPointPreference() {
+        mConnectedAccessPointPreferenceCategory.removeAll();
+        mConnectedAccessPointPreferenceCategory.setVisible(false);
+    }
+    
+
+
+    private void addConnectedAccessPointPreference(AccessPoint connectedAp) {
+        String key = connectedAp.getBssid();
+        LongPressAccessPointPreference pref = (LongPressAccessPointPreference)getCachedPreference(key); // 从cache 获取 LongPressAccessPointPreference
+        if (pref == null) {
+            pref = createLongPressActionPointPreference(connectedAp); // 如果cache为空 那么 new  LongPressActionPointPreference
+        }
+
+        // Save the state of the current access point in the bundle so that we can restore it
+        // in the Wifi Network Details Fragment
+        pref.getAccessPoint().saveWifiState(pref.getExtras());
+        pref.setFragment(WifiNetworkDetailsFragment.class.getName());  // 设置当前 Preference的 目标 Fragment 是 WifiNetworkDetailsFragment.class.getName()
+        pref.refresh();
+
+        mConnectedAccessPointPreferenceCategory.addPreference(pref);  // 添加 当前已连接WIFI 的 Preference 到 mConnectedAccessPointPreferenceCategory
+        mConnectedAccessPointPreferenceCategory.setVisible(true); // 设置  当前已连接WIFI 可见 
+    }
+    
+    
+#############
+/frameworks/base/packages/SettingsLib/src/com/android/settingslib/wifi/AccessPoint.java
+
+ private NetworkInfo mNetworkInfo;
+ private int networkId = WifiConfiguration.INVALID_NETWORK_ID【-1】;
+  
+    public boolean isActive() {
+        return mNetworkInfo != null &&
+                (networkId != WifiConfiguration.INVALID_NETWORK_ID ||
+                 mNetworkInfo.getState() != State.DISCONNECTED);
+    }
+    
+
+    public void saveWifiState(Bundle savedState) {
+        if (ssid != null) savedState.putString(KEY_SSID, getSsidStr());
+        savedState.putInt(KEY_SECURITY, security);
+        savedState.putInt(KEY_PSKTYPE, pskType);
+        if (mConfig != null) savedState.putParcelable(KEY_CONFIG, mConfig);
+        savedState.putParcelable(KEY_WIFIINFO, mInfo);
+        evictOldScanResults();
+        savedState.putParcelableArrayList(KEY_SCANRESULTCACHE,
+                new ArrayList<ScanResult>(mScanResultCache.values()));
+        if (mNetworkInfo != null) {
+            savedState.putParcelable(KEY_NETWORKINFO, mNetworkInfo);
+        }
+        if (mFqdn != null) {
+            savedState.putString(KEY_FQDN, mFqdn);
+        }
+        if (mProviderFriendlyName != null) {
+            savedState.putString(KEY_PROVIDER_FRIENDLY_NAME, mProviderFriendlyName);
+        }
+    }
+
+
+
+------------------
+UA13 的  LongPressAccessPointPreference 
+/packages/apps/Settings/src/com/android/settings/wifi/LongPressAccessPointPreference.java
+public class LongPressAccessPointPreference extends AccessPointPreference {
+
+    private final Fragment mFragment;
+    
+        public void onBindViewHolder(final PreferenceViewHolder view) {
+        super.onBindViewHolder(view);
+        if (mFragment != null) {
+            view.itemView.setOnCreateContextMenuListener(mFragment);
+            view.itemView.setTag(this);
+            view.itemView.setLongClickable(true);
+        }
+    }
+}
+
+
+
+/frameworks/base/packages/SettingsLib/src/com/android/settingslib/wifi/AccessPointPreference.java
+
+public class AccessPointPreference extends Preference {
+
+    <string name="accessibility_wifi_one_bar">"WLAN 信号强度为一格。"</string>
+    <string name="accessibility_wifi_two_bars" >"WLAN 信号强度为两格。"</string>
+    <string name="accessibility_wifi_three_bars" >"WLAN 信号强度为三格。"</string>
+    <string name="accessibility_wifi_signal_full" >"WLAN 信号满格。"</string>
+    
+    static final int[] WIFI_CONNECTION_STRENGTH = {
+            R.string.accessibility_wifi_one_bar,
+            R.string.accessibility_wifi_two_bars,
+            R.string.accessibility_wifi_three_bars,
+            R.string.accessibility_wifi_signal_full
+    };
+
+
+    public AccessPointPreference(AccessPoint accessPoint, Context context, UserBadgeCache cache,boolean forSavedNetworks) {
+        setWidgetLayoutResource(R.layout.access_point_friction_widget);  // 布局文件为  access_point_friction_widget.xml
+        
+        }
+        
+}
+
+/frameworks/base/packages/SettingsLib/src/com/android/settingslib/wifi/AccessPointPreference.java
+
+import android.support.v7.preference.PreferenceViewHolder;
+
+public class AccessPointPreference extends Preference {
+
+ private TextView mTitleView;  // 显示  各个 热点名字的  TextView
+ 
+    @Override
+    public void onBindViewHolder(final PreferenceViewHolder view) {
+        super.onBindViewHolder(view);
+        if (mAccessPoint == null) {
+            // Used for dummy pref.
+            return;
+        }
+        Drawable drawable = getIcon();
+        if (drawable != null) {
+            drawable.setLevel(mLevel); 
+        }
+
+        mTitleView = (TextView) view.findViewById(com.android.internal.R.id.title);  // 显示  各个 热点名字的  TextView
+        if (mTitleView != null) {
+            // Attach to the end of the title view
+            mTitleView.setCompoundDrawablesRelativeWithIntrinsicBounds(null, null, mBadge, null);
+            mTitleView.setCompoundDrawablePadding(mBadgePadding);
+        }
+        view.itemView.setContentDescription(mContentDescription);  // 设置 简要text  在 refresh() 方法中查看  mContentDescription  获取的值
+
+        ImageView frictionImageView = (ImageView) view.findViewById(R.id.friction_icon);
+        bindFrictionImage(frictionImageView);
+    }
+
+/frameworks/base/packages/SettingsLib/src/com/android/settingslib/wifi/AccessPointPreference.java
+    protected void updateIcon(int level, Context context) {
+        if (level == -1) {
+            safeSetDefaultIcon();
+            return;
+        }
+        TronUtils.logWifiSettingsBadge(context, mWifiBadge);
+        Drawable drawable = NetworkBadging.getWifiIcon(level, mWifiBadge, getContext().getTheme()); // 依据 level 获得 wifi信号 图标
+        if (!mForSavedNetworks && drawable != null) {
+            drawable.setTint(Utils.getColorAttr(context, android.R.attr.colorControlNormal));
+            setIcon(drawable); // 设置 图标 
+        } else {
+            safeSetDefaultIcon();
+        }
+    }
+
+
+
+/frameworks/base/packages/SettingsLib/src/com/android/settingslib/wifi/AccessPointPreference.java
+    public void refresh() {
+        if (mForSavedNetworks) {
+            setTitle(mAccessPoint.getConfigName());  // 在此处设置 标题显示的字符串
+        } else {
+            setTitle(mAccessPoint.getSsid()); // 在此处设置 标题显示的字符串
+        }
+
+        final Context context = getContext();
+        int level = mAccessPoint.getLevel();  // 获得信号的强度值
+        int wifiBadge = mAccessPoint.getBadge();
+        if (level != mLevel || wifiBadge != mWifiBadge) {
+            mLevel = level;
+            mWifiBadge = wifiBadge;
+            updateIcon(mLevel, context);
+            notifyChanged();
+        }
+
+        updateBadge(context);
+
+        setSummary(mForSavedNetworks ? mAccessPoint.getSavedNetworkSummary(): mAccessPoint.getSettingsSummary());
+
+        mContentDescription = getTitle();
+        if (getSummary() != null) {
+            mContentDescription = TextUtils.concat(mContentDescription, ",", getSummary());
+        }
+        if (level >= 0 && level < WIFI_CONNECTION_STRENGTH.length) {
+            mContentDescription = TextUtils.concat(mContentDescription, ",",
+                    getContext().getString(WIFI_CONNECTION_STRENGTH[level]));
+        }
+    }
+    
+    
+    
+#########
+/frameworks/support/v7/preference/src/android/support/v7/preference/PreferenceViewHolder.java
+public class PreferenceViewHolder extends RecyclerView.ViewHolder {
+
+    private final SparseArray<View> mCachedViews = new SparseArray<>(4);
+    /* package */ PreferenceViewHolder(View itemView) {
+        super(itemView);
+
+        // Pre-cache the views that we know in advance we'll want to find
+        mCachedViews.put(android.R.id.title, itemView.findViewById(android.R.id.title)); // title 标题
+        mCachedViews.put(android.R.id.summary, itemView.findViewById(android.R.id.summary));  // 简要
+        mCachedViews.put(android.R.id.icon, itemView.findViewById(android.R.id.icon));  // 图标
+        mCachedViews.put(R.id.icon_frame, itemView.findViewById(R.id.icon_frame));
+        mCachedViews.put(AndroidResources.ANDROID_R_ICON_FRAME,itemView.findViewById(AndroidResources.ANDROID_R_ICON_FRAME));
+    }
+    
+#############
+/frameworks/base/packages/SettingsLib/src/com/android/settingslib/wifi/AccessPoint.java
+
+    public int getLevel() {
+        return WifiManager.calculateSignalLevel(mRssi, SIGNAL_LEVELS【5】);
+    }
+
+
+
+    public String getSavedNetworkSummary() {
+        WifiConfiguration config = mConfig;
+        if (config != null) {
+            PackageManager pm = mContext.getPackageManager();
+            String systemName = pm.getNameForUid(android.os.Process.SYSTEM_UID);
+            int userId = UserHandle.getUserId(config.creatorUid);
+            ApplicationInfo appInfo = null;
+            if (config.creatorName != null && config.creatorName.equals(systemName)) {
+                appInfo = mContext.getApplicationInfo();
+            } else {
+                try {
+                    IPackageManager ipm = AppGlobals.getPackageManager();
+                    appInfo = ipm.getApplicationInfo(config.creatorName, 0 /* flags */, userId);
+                } catch (RemoteException rex) {
+                }
+            }
+            if (appInfo != null &&
+                    !appInfo.packageName.equals(mContext.getString(R.string.settings_package)) &&
+                    !appInfo.packageName.equals(
+                    mContext.getString(R.string.certinstaller_package))) {
+                return mContext.getString(R.string.saved_network, appInfo.loadLabel(pm));
+     //  <string name="saved_network">"由<xliff:g id="NAME">%1$s</xliff:g>保存"</string>
+            }
+        }
+        return "";
+    }
+    
+
+
+private WifiConfiguration mConfig;
+
+    private String getSettingsSummary(WifiConfiguration config) {
+        // Update to new summary
+        StringBuilder summary = new StringBuilder();
+
+        if (isActive() && config != null && config.isPasspoint()) { // 一.  1.当前 AccessPoint 是Active   2.  WifiConfiguration mConfig 不为空  3. 当前 mConfig 类型为 passpoint网络
+            // This is the active connection on passpoint
+            summary.append(getSummary(mContext, getDetailedState(),false, config.providerFriendlyName));
+        } else if (isActive()) { // 二.   1.当前 AccessPoint 是Active
+            // This is the active connection on non-passpoint network
+            summary.append(getSummary(mContext, getDetailedState(),mInfo != null && mInfo.isEphemeral()));
+        } else if (config != null && config.isPasspoint() && config.getNetworkSelectionStatus().isNetworkEnabled()) {
+            String format = mContext.getString(R.string.available_via_passpoint);
+            //  <string name="available_via_passpoint" msgid="1617440946846329613">"可通过%1$s连接"</string>
+            summary.append(String.format(format, config.providerFriendlyName));
+        } else if (config != null && config.hasNoInternetAccess()) {
+            int messageID = config.getNetworkSelectionStatus().isNetworkPermanentlyDisabled() ? R.string.wifi_no_internet_no_reconnect : R.string.wifi_no_internet;
+            //<string name="wifi_no_internet_no_reconnect" msgid="5724903347310541706">"无法自动连接"</string> 
+            //<string name="wifi_no_internet" msgid="3880396223819116454">"无法连接到互联网"</string>
+            summary.append(mContext.getString(messageID));
+        } else if (config != null && !config.getNetworkSelectionStatus().isNetworkEnabled()) {
+            WifiConfiguration.NetworkSelectionStatus networkStatus =config.getNetworkSelectionStatus();
+            switch (networkStatus.getNetworkSelectionDisableReason()) {
+                case WifiConfiguration.NetworkSelectionStatus.DISABLED_AUTHENTICATION_FAILURE:
+                    summary.append(mContext.getString(R.string.wifi_disabled_password_failure));
+                    // <string name="wifi_disabled_password_failure" msgid="8659805351763133575">"身份验证出现问题"</string>
+                    break;
+                case WifiConfiguration.NetworkSelectionStatus.DISABLED_DHCP_FAILURE:
+                case WifiConfiguration.NetworkSelectionStatus.DISABLED_DNS_FAILURE:
+                    summary.append(mContext.getString(R.string.wifi_disabled_network_failure));
+                    // <string name="wifi_disabled_network_failure" msgid="2364951338436007124">"IP 配置失败"</string>
+                    break;
+                case WifiConfiguration.NetworkSelectionStatus.DISABLED_ASSOCIATION_REJECTION:
+                    summary.append(mContext.getString(R.string.wifi_disabled_generic));
+                    // <string name="wifi_disabled_generic" msgid="4259794910584943386">"已停用"</string>
+                    break;
+            }
+        } else if (config != null && config.getNetworkSelectionStatus().isNotRecommended()) {
+            summary.append(mContext.getString(R.string.wifi_disabled_by_recommendation_provider));
+            //   <string name="wifi_disabled_by_recommendation_provider" msgid="5168315140978066096">"网络质量较差，因此未连接"</string>
+        } else if (!isReachable()) { // Wifi out of range
+            summary.append(mContext.getString(R.string.wifi_not_in_range));
+            // <string name="wifi_not_in_range" msgid="1136191511238508967">"不在范围内"</string> 
+        } else { // In range, not disabled.
+            if (config != null) { // Is saved network
+                summary.append(mContext.getString(R.string.wifi_remembered));
+                // <string name="wifi_remembered" msgid="4955746899347821096">"已保存"</string>
+            }
+        }
+
+        if (WifiTracker.sVerboseLogging > 0) { // 如果打开了 开发者选项的   wifi-verbose 按钮  那么
+            // Add RSSI/band information for this config, what was seen up to 6 seconds ago
+            // verbose WiFi Logging is only turned on thru developers settings
+            if (mInfo != null && mNetworkInfo != null) { // This is the active connection
+                summary.append(" f=" + Integer.toString(mInfo.getFrequency()));  // f=5724  打印出当前的 通信信道
+            }
+            summary.append(" " + getVisibilityStatus());  // 返回  WifiConfiguration 的信息
+            if (config != null && !config.getNetworkSelectionStatus().isNetworkEnabled()) {
+                summary.append(" (" + config.getNetworkSelectionStatus().getNetworkStatusString());
+                if (config.getNetworkSelectionStatus().getDisableTime() > 0) {
+                    long now = System.currentTimeMillis();
+                    long diff = (now - config.getNetworkSelectionStatus().getDisableTime()) / 1000;
+                    long sec = diff%60; //seconds
+                    long min = (diff/60)%60; //minutes
+                    long hour = (min/60)%60; //hours
+                    summary.append(", ");
+                    if (hour > 0) summary.append(Long.toString(hour) + "h ");
+                    summary.append( Long.toString(min) + "m ");
+                    summary.append( Long.toString(sec) + "s ");  //   添加 断开连接的时间
+                }
+                summary.append(")");
+            }
+
+            if (config != null) {
+                WifiConfiguration.NetworkSelectionStatus networkStatus = config.getNetworkSelectionStatus();
+                for (int index = WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE 【0】;
+                        index < WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_DISABLED_MAX 【12 】; index++) {
+                    if (networkStatus.getDisableReasonCounter(index) != 0) {
+                        summary.append(" " + WifiConfiguration.NetworkSelectionStatus.getNetworkDisableReasonString(index) + "="+ networkStatus.getDisableReasonCounter(index));
+                    }
+                }
+            }
+        }
+        return summary.toString();
+    }
+    
+#############
+/frameworks/base/wifi/java/android/net/wifi/WifiConfiguration.java
+
+private int mStatus;
+
+        public static final String[] QUALITY_NETWORK_SELECTION_STATUS = {
+                "NETWORK_SELECTION_ENABLED",
+                "NETWORK_SELECTION_TEMPORARY_DISABLED",
+                "NETWORK_SELECTION_PERMANENTLY_DISABLED"};
+                
+        public String getNetworkStatusString() {
+            return QUALITY_NETWORK_SELECTION_STATUS[mStatus];
+        }
+
+
+        public static String getNetworkDisableReasonString(int reason) {
+            if (reason >= NETWORK_SELECTION_ENABLE && reason < NETWORK_SELECTION_DISABLED_MAX) {
+                return QUALITY_NETWORK_SELECTION_DISABLE_REASON[reason];
+            } else {
+                return null;
+            }
+        }
+        
+
+        public int getDisableReasonCounter(int reason) {
+            if (reason >= NETWORK_SELECTION_ENABLE【0】 && reason < NETWORK_SELECTION_DISABLED_MAX【12】) {
+                return mNetworkSeclectionDisableCounter[reason];
+            } else {
+                throw new IllegalArgumentException("Illegal reason value: " + reason);
+            }
+        }
+
+
+ Arrays.fill(mNetworkSeclectionDisableCounter, NETWORK_SELECTION_ENABLE);
+ 
+        public static final String[] QUALITY_NETWORK_SELECTION_DISABLE_REASON = {  // 连接失败的原因
+                "NETWORK_SELECTION_ENABLE",
+                "NETWORK_SELECTION_DISABLED_BAD_LINK", // deprecated
+                "NETWORK_SELECTION_DISABLED_ASSOCIATION_REJECTION ",
+                "NETWORK_SELECTION_DISABLED_AUTHENTICATION_FAILURE",
+                "NETWORK_SELECTION_DISABLED_DHCP_FAILURE",
+                "NETWORK_SELECTION_DISABLED_DNS_FAILURE",
+                "NETWORK_SELECTION_DISABLED_WPS_START",
+                "NETWORK_SELECTION_DISABLED_TLS_VERSION",
+                "NETWORK_SELECTION_DISABLED_AUTHENTICATION_NO_CREDENTIALS",
+                "NETWORK_SELECTION_DISABLED_NO_INTERNET",
+                "NETWORK_SELECTION_DISABLED_BY_WIFI_MANAGER",
+                "NETWORK_SELECTION_DISABLED_BY_USER_SWITCH"
+        };
+
+
+---------------
+
+/frameworks/base/packages/SettingsLib/src/com/android/settingslib/wifi/AccessPoint.java
+    /**
+     * Returns the visibility status of the WifiConfiguration.
+     *
+     * @return autojoin debugging information
+     * TODO: use a string formatter
+     * ["rssi 5Ghz", "num results on 5GHz" / "rssi 5Ghz", "num results on 5GHz"]
+     * For instance [-40,5/-30,2]
+     */
+ private WifiInfo mInfo;
+ private int mRankingScore = Integer.MIN_VALUE;
+ 
+ private String getVisibilityStatus() {
+        StringBuilder visibility = new StringBuilder();
+        StringBuilder scans24GHz = null;
+        StringBuilder scans5GHz = null;
+        String bssid = null;
+
+        long now = System.currentTimeMillis();
+
+        if (mInfo != null) {
+            bssid = mInfo.getBSSID();
+            if (bssid != null) {
+                visibility.append(" ").append(bssid); // 显示当前连接wifi的 Bssid
+            }
+            visibility.append(" rssi=").append(mInfo.getRssi());  //信号实时量
+            visibility.append(" ");
+            visibility.append(" score=").append(mInfo.score);  // 当前 wifi网络的 评分
+            if (mRankingScore != Integer.MIN_VALUE) {
+              visibility.append(" rankingScore=").append(getRankingScore()); // 排行
+            }
+            if (mBadge != NetworkBadging.BADGING_NONE) {
+              visibility.append(" badge=").append(getBadge());
+            }
+            visibility.append(String.format(" tx=%.1f,", mInfo.txSuccessRate));  // public double txSuccessRate;  成功发送速率
+            visibility.append(String.format("%.1f,", mInfo.txRetriesRate));   //public double txRetriesRate;  重传发送速率  
+            visibility.append(String.format("%.1f ", mInfo.txBadRate));   //  public double txBadRate;   失败发送速率
+            visibility.append(String.format("rx=%.1f", mInfo.rxSuccessRate));  //  public double rxSuccessRate; 成功接收的速率
+        }
+
+        int rssi5 = WifiConfiguration.INVALID_RSSI;
+        int rssi24 = WifiConfiguration.INVALID_RSSI;
+        int num5 = 0;
+        int num24 = 0;
+        int numBlackListed = 0;
+        int n24 = 0; // Number scan results we included in the string
+        int n5 = 0; // Number scan results we included in the string
+        evictOldScanResults();
+        // TODO: sort list by RSSI or age
+        for (ScanResult result : mScanResultCache.values()) {
+
+            if (result.frequency >= LOWER_FREQ_5GHZ  && result.frequency <= HIGHER_FREQ_5GHZ) {
+                // Strictly speaking: [4915, 5825]
+                // number of known BSSID on 5GHz band
+                num5 = num5 + 1;
+            } else if (result.frequency >= LOWER_FREQ_24GHZ  && result.frequency <= HIGHER_FREQ_24GHZ) {
+                // Strictly speaking: [2412, 2482]
+                // number of known BSSID on 2.4Ghz band
+                num24 = num24 + 1;
+            }
+
+
+            if (result.frequency >= LOWER_FREQ_5GHZ && result.frequency <= HIGHER_FREQ_5GHZ) {
+                if (result.level > rssi5) {
+                    rssi5 = result.level;
+                }
+                 scans5GHz.append("max=").append(max5Grssi); // 在安卓8.1 显示 最大的 max的 5G信号量
+                if (n5 < 4) {  // 显示最多四个 5G 信道信息
+                    if (scans5GHz == null) scans5GHz = new StringBuilder();
+                    scans5GHz.append(" \n{").append(result.BSSID);  // 添加  {  bssid = frequency，
+                    if (bssid != null && result.BSSID.equals(bssid)) scans5GHz.append("*");
+                    scans5GHz.append("=").append(result.frequency);
+                    scans5GHz.append(",").append(result.level);
+                     scans5GHz.append(",").append(now - result.timestamp/1000*1000).append("s");  //  用于显示在几秒之前探测到的结果
+                    scans5GHz.append("}");
+                    n5++;
+                }
+            } else if (result.frequency >= LOWER_FREQ_24GHZ && result.frequency <= HIGHER_FREQ_24GHZ) {
+                if (result.level > rssi24) {
+                    rssi24 = result.level;
+                }
+                scans24GHz.append("max=").append(max24Grssi); // 在安卓8.1 显示 最大的 max的 2.4G信号量
+                if (n24 < 4) {   // 显示最多四个 2.4G 信道信息
+                    if (scans24GHz == null) scans24GHz = new StringBuilder();
+                    scans24GHz.append(" \n{").append(result.BSSID);
+                    if (bssid != null && result.BSSID.equals(bssid)) scans24GHz.append("*");
+                    scans24GHz.append("=").append(result.frequency);
+                    scans24GHz.append(",").append(result.level);
+                    scans5GHz.append(",").append(now - result.timestamp/1000*1000).append("s");  //  用于显示在几秒之前探测到的结果
+                    scans24GHz.append("}");
+                    n24++;
+                }
+            }
+        }
+        visibility.append(" [");
+        if (num24 > 0) {
+            visibility.append("(").append(num24).append(")");
+            if (n24 <= 4) {
+                if (scans24GHz != null) {
+                    visibility.append(scans24GHz.toString());
+                }
+            } else {
+                visibility.append("max=").append(rssi24); // 2.4G 最好的信号质量 信号量
+                if (scans24GHz != null) {
+                    visibility.append(",").append(scans24GHz.toString());
+                }
+            }
+        }
+        visibility.append(";");
+        if (num5 > 0) {
+            visibility.append("(").append(num5).append(")");
+            if (n5 <= 4) {
+                if (scans5GHz != null) {
+                    visibility.append(scans5GHz.toString());
+                }
+            } else {
+                visibility.append("max=").append(rssi5);  // 5G 最好的信号质量 信号量
+                if (scans5GHz != null) {
+                    visibility.append(",").append(scans5GHz.toString());
+                }
+            }
+        }
+        if (numBlackListed > 0)
+            visibility.append("!").append(numBlackListed);
+        visibility.append("]");
+
+        return visibility.toString();  // 返回 简要显示的 字符串 Summary
+    }
+    
+    
+    
+------------------------------------
+
+    public static String getSummary(Context context, String ssid, DetailedState state,boolean isEphemeral, String passpointProvider) {
+        if (state == DetailedState.CONNECTED && ssid == null) {
+            if (TextUtils.isEmpty(passpointProvider) == false) {
+                // Special case for connected + passpoint networks.
+                String format = context.getString(R.string.connected_via_passpoint);
+           // <string name="connected_via_passpoint" msgid="2826205693803088747">"已通过%1$s连接"</string>    已通过 passpoint 网络连接 
+           
+                return String.format(format, passpointProvider);
+            } else if (isEphemeral) {
+                // Special case for connected + ephemeral networks.
+                final NetworkScoreManager networkScoreManager = context.getSystemService( NetworkScoreManager.class);
+                NetworkScorerAppData scorer = networkScoreManager.getActiveScorer();
+                if (scorer != null && scorer.getRecommendationServiceLabel() != null) {
+                    String format = context.getString(R.string.connected_via_network_scorer);
+               //  <string name="connected_via_network_scorer" msgid="5713793306870815341">"已通过%1$s自动连接"</string>   已通过 passpoint网络  自动连接
+                    return String.format(format, scorer.getRecommendationServiceLabel());
+                } else {
+                    return context.getString(R.string.connected_via_network_scorer_default);
+               //  <string name="connected_via_network_scorer_default" msgid="7867260222020343104">"已自动连接（通过网络评分服务提供方）"</string>
+                }
+            }
+        }
+        //  if (state == DetailedState.CONNECTED && ssid == null) {----------end
+        // Case when there is wifi connected without internet connectivity.
+        final ConnectivityManager cm = (ConnectivityManager)  context.getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (state == DetailedState.CONNECTED) {
+            IWifiManager wifiManager = IWifiManager.Stub.asInterface( ServiceManager.getService(Context.WIFI_SERVICE));
+            NetworkCapabilities nc = null;
+            try {
+                nc = cm.getNetworkCapabilities(wifiManager.getCurrentNetwork());
+            } catch (RemoteException e) {}
+
+            if (nc != null) {
+                if (nc.hasCapability(nc.NET_CAPABILITY_CAPTIVE_PORTAL)) {   //  如果当前网络的 NetworkCapabilities  属于 NET_CAPABILITY_CAPTIVE_PORTAL PORTAL网络 那么显示   登录到网络
+                    return context.getString(com.android.internal.R.string.network_available_sign_in);
+                    // <string name="network_available_sign_in" msgid="1848877297365446605">"登录到网络"</string>
+                } else if (!nc.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) { 
+            //  如果当前网络的 NetworkCapabilities 包含  NET_CAPABILITY_VALIDATED【网络有效】 返回为false 那么显示  当前网络无   internet访问能力 
+            // <string name="wifi_connected_no_internet" msgid="3149853966840874992">"已连接，但无法访问互联网"</string>
+                    return context.getString(R.string.wifi_connected_no_internet);
+                }
+            }
+        }
+        if (state == null) {
+            Log.w(TAG, "state is null, returning empty summary");
+            return "";
+        }
+        String[] formats = context.getResources().getStringArray((ssid == null)? R.array.wifi_status : R.array.wifi_status_with_ssid); // 依据 ssid 是否为空 获取 字符数组
+        int index = state【DetailedState】.ordinal();  // 获得当前State 在 emnu数组中的 索引    因为状态是数组索引是一一对应的关系
+
+        if (index >= formats.length || formats[index].length() == 0) {
+            return "";
+        }
+        return String.format(formats[index], ssid);  //  返回字符串
+    }
+
+
+
+  <string-array name="wifi_status">
+    <item msgid="1922181315419294640"></item>
+    <item msgid="8934131797783724664">"正在扫描..."</item>
+    <item msgid="8513729475867537913">"正在连接..."</item>
+    <item msgid="515055375277271756">"正在进行身份验证..."</item>
+    <item msgid="1943354004029184381">"正在获取IP地址..."</item>
+    <item msgid="4221763391123233270">"已连接"</item>
+    <item msgid="624838831631122137">"已暂停"</item>
+    <item msgid="7979680559596111948">"正在断开连接..."</item>
+    <item msgid="1634960474403853625">"已断开连接"</item>
+    <item msgid="746097431216080650">"失败"</item>
+    <item msgid="6367044185730295334">"已停用"</item>
+    <item msgid="503942654197908005">"暂时关闭（网络状况不佳）"</item>
+  </string-array>
+  
+  
+    <string-array name="wifi_status_with_ssid">
+    <item msgid="7714855332363650812"></item>
+    <item msgid="8878186979715711006">"正在扫描..."</item>
+    <item msgid="355508996603873860">"正在连接到 <xliff:g id="NETWORK_NAME">%1$s</xliff:g>..."</item>
+    <item msgid="554971459996405634">"正在通过 <xliff:g id="NETWORK_NAME">%1$s</xliff:g> 进行身份验证..."</item>
+    <item msgid="7928343808033020343">"正在从<xliff:g id="NETWORK_NAME">%1$s</xliff:g>获取IP地址..."</item>
+    <item msgid="8937994881315223448">"已连接到 <xliff:g id="NETWORK_NAME">%1$s</xliff:g>"</item>
+    <item msgid="1330262655415760617">"已暂停"</item>
+    <item msgid="7698638434317271902">"正在断开与 <xliff:g id="NETWORK_NAME">%1$s</xliff:g> 的连接..."</item>
+    <item msgid="197508606402264311">"已断开连接"</item>
+    <item msgid="8578370891960825148">"失败"</item>
+    <item msgid="5660739516542454527">"已停用"</item>
+    <item msgid="1805837518286731242">"暂时关闭（网络状况不佳）"</item>
+  </string-array>
+  
+##############
+/frameworks/base/core/java/android/net/NetworkInfo.java
+
+public class NetworkInfo implements Parcelable {
+
+    public enum DetailedState {   // 与字符串数组   <string-array name="wifi_status_with_ssid">     <string-array name="wifi_status"> 的索引是一一对应的关系
+        IDLE,/** Ready to start data connection setup. */
+        SCANNING,    /** Searching for an available access point. */
+        CONNECTING,   /** Currently setting up data connection. */
+        AUTHENTICATING,/** Network link established, performing authentication. */
+        OBTAINING_IPADDR,/** Awaiting response from DHCP server in order to assign IP address information. */
+        CONNECTED, /** IP traffic should be available. */
+        SUSPENDED,/** IP traffic is suspended */
+        DISCONNECTING,/** Currently tearing down data connection. */
+        DISCONNECTED, /** IP traffic not available. */
+        FAILED, /** Attempt to connect failed. */
+        BLOCKED,  /** Access to this network is blocked. */
+        VERIFYING_POOR_LINK,  /** Link has poor connectivity. */
+        CAPTIVE_PORTAL_CHECK  /** Checking if network is a captive portal */
+    }
+
+
+
+
+#########
+
+/frameworks/base/wifi/java/android/net/wifi/WifiManager.java
+    public static int calculateSignalLevel(int rssi, int numLevels) {
+        if (rssi <= MIN_RSSI 【-100】) {
+            return 0;
+        } else if (rssi >= MAX_RSSI【-50】) {
+            return numLevels - 1;
+        } else {
+            float inputRange = (MAX_RSSI - MIN_RSSI); // 50
+            float outputRange = (numLevels - 1); // 4 
+            return (int)((float)(rssi - MIN_RSSI) * outputRange / inputRange);  // 在 -50 到 -100 之间 取值
+        }
+    }
+    
+
+###########
+/frameworks/base/core/java/android/net/NetworkBadging.java
+
+    @NonNull public static Drawable getWifiIcon(@IntRange(from=0, to=4) int signalLevel, @Badging int badging, @Nullable Theme theme) {
+        return Resources.getSystem().getDrawable(getWifiSignalResource(signalLevel), theme);
+    }
+
+
+    @DrawableRes private static int getWifiSignalResource(int signalLevel) {
+        switch (signalLevel) {
+            case 0:
+                return com.android.internal.R.drawable.ic_wifi_signal_0;  // 信号图标资源ID
+            case 1:
+                return com.android.internal.R.drawable.ic_wifi_signal_1;
+            case 2:
+                return com.android.internal.R.drawable.ic_wifi_signal_2;
+            case 3:
+                return com.android.internal.R.drawable.ic_wifi_signal_3;
+            case 4:
+                return com.android.internal.R.drawable.ic_wifi_signal_4;
+            default:
+                throw new IllegalArgumentException("Invalid signal level: " + signalLevel);
+        }
+    }
+    
+```
+
+###WIFI UA13 布局分析
+```
+
+     wifi_settings.xml
+     <?xml version="1.0" encoding="utf-8"?>
+
+      <PreferenceScreen
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:settings="http://schemas.android.com/apk/res/com.android.settings"
+        android:title="@string/wifi_settings"
+        settings:keywords="@string/keywords_wifi">
+
+    <PreferenceCategory android:key="connected_access_point" /> // 当前已连接网络的PreferenceCategory
+
+    <PreferenceCategory android:key="access_points"/>  // 当前搜索到的网络的PreferenceCategory
+
+    <PreferenceCategory android:key="additional_settings">  //  添加网络的 PreferenceCategory
+        <Preference
+                android:key="configure_settings"           // WLAN偏好设置
+                android:title="@string/wifi_configure_settings_preference_title"
+                android:fragment="com.android.settings.wifi.ConfigureWifiSettings" />
+
+        <Preference
+                android:key="saved_networks"    // 已保存网络Preference
+                android:title="@string/wifi_saved_access_points_label"
+                android:fragment="com.android.settings.wifi.SavedAccessPointsWifiSettings" />
+    </PreferenceCategory>
+      </PreferenceScreen>
+      
+      
+  access_point_friction_widget.xml
+  
+  <?xml version="1.0" encoding="utf-8"?>
+<ImageView xmlns:android="http://schemas.android.com/apk/res/android"
+        android:id="@+id/friction_icon"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:contentDescription="@null" />
+
+
+
+
+
+com.android.internal.R.layout.preference  资源ID
+/frameworks/base/core/res/res/layout/preference.xml
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" 
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:minHeight="?android:attr/listPreferredItemHeight"
+    android:gravity="center_vertical"
+    android:paddingEnd="?android:attr/scrollbarSize"
+    android:background="?android:attr/selectableItemBackground" >
+
+    <ImageView
+        android:id="@+android:id/icon"   // 显示  wifi信号质量的图标
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        />
+
+    <RelativeLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="15dip"
+        android:layout_marginEnd="6dip"
+        android:layout_marginTop="6dip"
+        android:layout_marginBottom="6dip"
+        android:layout_weight="1">
+
+        <TextView android:id="@+android:id/title"   // 显示  WIFI 热点  名字
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:singleLine="true"
+            android:textAppearance="?android:attr/textAppearanceLarge"
+            android:ellipsize="marquee"
+            android:fadingEdge="horizontal" />
+
+        <TextView android:id="@+android:id/summary"   //   显示 热点 简要
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@android:id/title"
+            android:layout_alignStart="@android:id/title"
+            android:textAppearance="?android:attr/textAppearanceSmall"
+            android:textColor="?android:attr/textColorSecondary"
+            android:maxLines="4" />
+
+    </RelativeLayout>
+
+    <!-- Preference should place its actual preference widget here. -->
+    <LinearLayout android:id="@+android:id/widget_frame"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:gravity="center_vertical"
+        android:orientation="vertical" />
+
+</LinearLayout>
+
+```
