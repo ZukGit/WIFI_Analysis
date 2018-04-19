@@ -4076,11 +4076,268 @@ private WifiConfigController mController;
 ```
 
 
-
-## WIFI UA18分析
+## WIFI UA18分析  (同UA5)
 ###WIFI UA18 操作列
+<img src="img/8.png" width = "25%" height="25%"/><img src="img/4.png" width = "25%" height="25%"/><img src="img/5.png" width = "25%" height="25%"/>
+1. **UA编号**   UA18
+1. **UA说明**  **Wifi Preference 偏好设置的 Preference点击事件** android:key="configure_settings"
+1. **UA触发函数**   packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java 的布局文件 wifi_settings.xml 中 指定了 点击打开的Fragment ConfigureWifiSettings 具体的逻辑事件同 UA13
+  WifiSettings.java onPreferenceTreeClick 是它的触发函数   该Preference无长按事件
+          <Preference
+                android:key="configure_settings"  // <string name="wifi_configure_settings_preference_title" >"WLAN 偏好设置"</string>   WLAN偏好设置选项
+                android:title="@string/wifi_configure_settings_preference_title"
+                android:fragment="com.android.settings.wifi.ConfigureWifiSettings" /> 
+1. **UA字符可选值**    
+1. **UA布局及ID**    
+1. **代码Key**     
+1. **代码可选值  **
+1. **数据库Key **  
+1. **数据库可选值 **   
+1. **SP的Key**  
+1. **SP可选值**  
+1. **UA操作后UI显示类**    
+1. **UA触发函数所在类**   
+---
+
+
+
+###WIFI UA18 代码分析
+```
+ /packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java 
+  @Override
+    public boolean onPreferenceTreeClick(Preference preference) {
+        // If the preference has a fragment set, open that
+        if (preference.getFragment() != null) { 
+//  如果当前 从 preference获取的 Fragment 不为 空  那么  调用   super.onPreferenceTreeClick(preference)  
+// xml   文件 定义了 该 Fragment   SavedAccessPointsWifiSettings
+            preference.setOnPreferenceClickListener(null);
+            return super.onPreferenceTreeClick(preference);
+        }
+
+
+
+/packages/apps/Settings/src/com/android/settings/wifi/ConfigureWifiSettings.java
+
+public class ConfigureWifiSettings extends DashboardFragment {
+
+
+    @Override
+    protected int getPreferenceScreenResId() {
+        return R.xml.wifi_configure_settings;  //  wifi偏好设置的 xml布局文件
+    }
+    
+    
+
+    @Override
+    protected List<PreferenceController> getPreferenceControllers(Context context) {  //  添加各个 List<PreferenceController> controllers 到界面
+        final NetworkScoreManagerWrapper networkScoreManagerWrapper = new NetworkScoreManagerWrapper(context.getSystemService(NetworkScoreManager.class));
+        mUseOpenWifiPreferenceController = new UseOpenWifiPreferenceController(context, this, networkScoreManagerWrapper, getLifecycle());
+        final WifiManager wifiManager = (WifiManager) getSystemService(WIFI_SERVICE);
+        final List<PreferenceController> controllers = new ArrayList<>();
+        controllers.add(new WifiWakeupPreferenceController(context, getLifecycle()));
+        controllers.add(new NetworkScorerPickerPreferenceController(context,  networkScoreManagerWrapper));
+        controllers.add(new NotifyOpenNetworksPreferenceController(context, getLifecycle()));
+        controllers.add(mUseOpenWifiPreferenceController);
+        controllers.add(new WifiSleepPolicyPreferenceController(context));
+        controllers.add(new WifiInfoPreferenceController(context, getLifecycle(), wifiManager));
+        controllers.add(new CellularFallbackPreferenceController(context));
+        controllers.add(new WifiP2pPreferenceController(context, getLifecycle(), wifiManager));
+        controllers.add(new WifiCallingPreferenceController(context));
+        controllers.add(new WpsPreferenceController( context, getLifecycle(), wifiManager, getFragmentManager()));
+        return controllers;
+    }
+
+
+
+
+############
+/frameworks/base/core/java/android/preference/PreferenceFragment.java    WifiSettings.java  的 爷爷类
+    public boolean onPreferenceTreeClick(PreferenceScreen preferenceScreen, Preference preference) {
+        if (preference.getFragment() != null && getActivity() instanceof OnPreferenceStartFragmentCallback) {
+            return ((OnPreferenceStartFragmentCallback)getActivity()【SettingsActivity】).onPreferenceStartFragment(this, preference); // 调用 onPreferenceStartFragment
+        }
+        return false;
+    }
+    
+    
+/packages/apps/Settings/src/com/android/settings/SettingsActivity.java
+public class SettingsActivity extends SettingsDrawerActivity
+        implements PreferenceManager.OnPreferenceTreeClickListener,
+        PreferenceFragment.OnPreferenceStartFragmentCallback【由于当前的Activity SettingsActivity 实现了  PreferenceFragment.OnPreferenceStartFragmentCallback 接口】,
+        // 所以 调用到了 SettingsActivity 方法实现的接口方法 onPreferenceStartFragment
+        ButtonBarHandler, FragmentManager.OnBackStackChangedListener {
+
+
+    @Override
+    public boolean onPreferenceStartFragment(PreferenceFragment caller, Preference pref) {
+        startPreferencePanel(caller, pref.getFragment(), pref.getExtras(), -1, pref.getTitle(), null, 0);  //
+        return true;
+    }
+    
+    
+    public void startPreferencePanel(Fragment caller, String fragmentClass, Bundle args,int titleRes, CharSequence titleText, Fragment resultTo, int resultRequestCode) {
+        String title = null;
+        if (titleRes < 0) {
+            if (titleText != null) {
+                title = titleText.toString();
+            } else {
+                title = "";
+            }
+        }
+        // 完成 跳转
+        Utils.startWithFragment(this, fragmentClass, args, resultTo, resultRequestCode,titleRes, title, mIsShortcut, mMetricsFeatureProvider.getMetricsCategory(caller));
+    }
+    }
+    
+    
+    /packages/apps/Settings/src/com/android/settings/Utils.java
+    
+public static void startWithFragment(Context context, String fragmentName, Bundle args,Fragment resultTo, int resultRequestCode, int titleResId,CharSequence title, int metricsCategory) {
+        startWithFragment(context, fragmentName, args, resultTo, resultRequestCode,null /* titleResPackageName */, titleResId, title, false /* not a shortcut */, metricsCategory);
+    }
+    
+
+
+```
+
+
+###WIFI UA18 布局分析
+R.xml.wifi_settings.xml 布局文件
+```
+R.xml.wifi_settings.xml    android:key="configure_settings"    WLAN偏好设置选项
+<?xml version="1.0" encoding="utf-8"?>
+
+<PreferenceScreen
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:settings="http://schemas.android.com/apk/res/com.android.settings"
+        android:title="@string/wifi_settings"  // values-zh-rCN/  <string name="wifi_settings" msgid="29722149822540994">"WLAN"</string>
+        settings:keywords="@string/keywords_wifi">
+
+    <PreferenceCategory android:key="connected_access_point" />  // 当前已连接的热点显示的Preference 
+
+    <PreferenceCategory android:key="access_points"/>  // 当前手机扫描到的热点的列表
+
+    <PreferenceCategory android:key="additional_settings"> // 添加网络 Preference Item
+        <Preference
+                android:key="configure_settings"  // <string name="wifi_configure_settings_preference_title" >"WLAN 偏好设置"</string>   WLAN偏好设置选项
+                android:title="@string/wifi_configure_settings_preference_title"
+                android:fragment="com.android.settings.wifi.ConfigureWifiSettings" />  // 偏好设置选项显示的Fragment   ConfigureWifiSettings
+
+        <Preference
+                android:key="saved_networks"      // <string name="wifi_saved_access_points_label">"已保存的网络"</string> 
+                android:title="@string/wifi_saved_access_points_label"
+                android:fragment="com.android.settings.wifi.SavedAccessPointsWifiSettings" />  // 已保存的网络显示的Fragment   SavedAccessPointsWifiSettings
+    </PreferenceCategory> 
+</PreferenceScreen>
+
+
+
+R.xml.wifi_display_saved_access_points  // 已保存热点的布局文件
+
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    android:title="@string/wifi_display_settings_title">  // <string name="wifi_display_settings_title" msgid="8740852850033480136">"投射"</string>
+</PreferenceScreen>
+
+
+
+
+R.xml.wifi_configure_settings
+<?xml version="1.0" encoding="utf-8"?>
+
+<PreferenceScreen
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:settings="http://schemas.android.com/apk/res/com.android.settings"
+        android:title="@string/wifi_configure_titlebar">
+
+    <SwitchPreference
+            android:key="enable_wifi_wakeup" 
+            android:title="@string/wifi_wakeup" // <string name="wifi_wakeup" >"自动开启 WLAN"</string>
+            android:icon="@drawable/ic_auto_wifi"
+            android:summary="@string/wifi_wakeup_summary" />
+
+    <SwitchPreference
+        android:key="use_open_wifi_automatically"
+        android:icon="@drawable/ic_open_wifi_autoconnect" 
+        android:title="@string/use_open_wifi_automatically_title" // <string name="use_open_wifi_automatically_title" >"连接到开放网络"</string>
+        android:summary="@string/use_open_wifi_automatically_summary" /> // <string name="use_open_wifi_automatically_summary">"自动连接到高品质的公共网络"</string>
+
+    <SwitchPreference
+            android:key="notify_open_networks"
+            android:title="@string/wifi_notify_open_networks"  // <string name="wifi_notify_open_networks" msgid="76298880708051981">"打开网络通知"</string>
+            android:icon="@drawable/ic_open_wifi_notifications"
+            android:summary="@string/wifi_notify_open_networks_summary" /> //<string name="wifi_notify_open_networks_summary" >"有可用的高品质公共网络时通知我"</string>
+
+    <SwitchPreference
+        android:key="wifi_cellular_data_fallback"
+        android:title="@string/wifi_cellular_data_fallback_title"
+        android:summary="@string/wifi_cellular_data_fallback_summary"/>
+
+    <ListPreference
+            android:key="sleep_policy"   // 在安卓8.1中 WIFI的休眠策略被去除  new WifiSleepPolicyPreferenceController(context));类进行处理
+            android:title="@string/wifi_setting_sleep_policy_title"// <string name="wifi_setting_sleep_policy_title">"在休眠状态下保持WLAN网络连接"</string>
+            android:entries="@array/wifi_sleep_policy_entries"
+            android:entryValues="@array/wifi_sleep_policy_values" />
+
+    <Preference
+            android:key="install_credentials"
+            android:title="@string/wifi_install_credentials"> // <string name="wifi_install_credentials" >"安装证书"</string>
+        <intent android:action="android.credentials.INSTALL_AS_USER"
+                android:targetPackage="com.android.certinstaller"
+                android:targetClass="com.android.certinstaller.CertInstallerMain">
+            <extra android:name="install_as_uid" android:value="1010"/>
+        </intent>
+    </Preference>
+
+    <Preference
+            android:key="wifi_calling_settings"
+            android:title="@string/wifi_calling_settings_title"
+            android:fragment="com.android.settings.WifiCallingSettings"
+            settings:keywords="@string/keywords_wifi_calling"/>
+
+    <Preference
+            android:key="network_scorer_picker"
+            android:title="@string/network_scorer_picker_title" // <string name="network_scorer_picker_title">"网络评分服务提供方"</string>
+            android:fragment="com.android.settings.network.NetworkScorerPicker"/>
+
+    <Preference
+            android:key="wifi_direct"    //  new WifiP2pPreferenceController(context, getLifecycle(), wifiManager)) 类进行处理
+            android:title="@string/wifi_menu_p2p"> // <string name="wifi_menu_p2p">"WLAN直连"</string>  WLAN直连指定了目标Activity类
+        <intent android:targetPackage="com.android.settings"
+                android:targetClass="com.android.settings.Settings$WifiP2pSettingsActivity"/>
+    </Preference>
+
+    <Preference
+            android:key="wps_push_button"    // new WpsPreferenceController( context, getLifecycle(), wifiManager, getFragmentManager()) 类进行处理
+            android:title="@string/wifi_menu_wps_pbc" />  // <string name="wifi_menu_wps_pbc">"WPS按钮"</string>
+
+    <Preference
+            android:key="wps_pin_entry"   // new WpsPreferenceController( context, getLifecycle(), wifiManager, getFragmentManager()) 类进行处理
+            android:title="@string/wifi_menu_wps_pin" />  // <string name="wifi_menu_wps_pin">"WPS PIN码输入"</string>
+
+    <Preference
+            android:key="mac_address"    // new WifiInfoPreferenceController(context, getLifecycle(), wifiManager)); 类进行处理
+            android:title="@string/wifi_advanced_mac_address_title"/>  // <string name="wifi_advanced_mac_address_title" >"MAC地址"</string>
+
+    <Preference
+            android:key="current_ip_address"  // new WifiInfoPreferenceController(context, getLifecycle(), wifiManager)); 类进行处理
+            android:title="@string/wifi_advanced_ip_address_title"/> //<string name="wifi_advanced_ip_address_title">"IP 地址"</string>
+
+</PreferenceScreen>
+
+
+```
+
+
+
+
+
+
+
+## WIFI UA19分析
+###WIFI UA19 操作列
 <img src="img/8.png" width = "25%" height="25%"/>
-1. **UA编号**   UA17
+1. **UA编号**   UA19
 1. **UA说明**  **Wifi Preference 设置的 Preference点击事件**
 1. **UA触发函数**   packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java 的布局文件 wifi_settings.xml 中 指定了 点击打开的Fragment SavedAccessPointsWifiSettings 具体的逻辑事件同 UA13
   WifiSettings.java onPreferenceTreeClick 是它的触发函数   该Preference无长按事件
@@ -4102,7 +4359,7 @@ private WifiConfigController mController;
 
 
 
-###WIFI UA18 代码分析
+###WIFI UA19 代码分析
 ```
  /packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java 
   @Override
@@ -4237,7 +4494,7 @@ packages/apps/Settings/src/com/android/settings/SettingsPreferenceFragment.java 
     }
 ```
 
-###WIFI UA18 布局分析
+###WIFI UA19 布局分析
 R.xml.wifi_settings.xml 布局文件
 ```
 R.xml.wifi_settings.xml
@@ -4277,4 +4534,1826 @@ R.xml.wifi_display_saved_access_points  // 已保存热点的布局文件
 
 
 
+```
+
+
+
+
+
+
+
+
+
+## WIFI UA20分析 (同UA15)
+###WIFI UA20 操作列
+<img src="img/9.png" width = "25%" height="25%"/>
+1. **UA编号**   UA20
+1. **UA说明**  **Wifi搜素到的热点 LongPressPreference 的点击事件弹出的对话框 WifiDialog**
+1. **UA触发函数**    packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java  onPreferenceTreeClick 点击事件执行了函数 showDialog(mSelectedAccessPoint, WifiConfigUiBase.MODE_CONNECT);
+  弹出的对话框
+
+1. **UA字符可选值**    
+1. **UA布局及ID**    
+1. **代码Key**     
+1. **代码可选值  **
+1. **数据库Key **  
+1. **数据库可选值 **   
+1. **SP的Key**  
+1. **SP可选值**  
+1. **UA操作后UI显示类**    packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java  onPreferenceTreeClick   showDialog(mSelectedAccessPoint, WifiConfigUiBase.MODE_CONNECT);
+1. **UA触发函数所在类**   
+---
+
+
+
+###WIFI UA20 代码分析
+```
+/packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java 
+    @Override
+    public boolean onPreferenceTreeClick(Preference preference) {
+        // If the preference has a fragment set, open that
+        if (preference.getFragment() != null) {
+            preference.setOnPreferenceClickListener(null);
+            return super.onPreferenceTreeClick(preference);  // 如果 preference设置了 fragment 则 跳转到该 fragment
+        }
+
+        if (preference instanceof LongPressAccessPointPreference) {
+            mSelectedAccessPoint = ((LongPressAccessPointPreference) preference).getAccessPoint();
+            if (mSelectedAccessPoint == null) {
+                return false;
+            }
+            if (mSelectedAccessPoint.isActive()) {  // 如果当前 AccessPoint 是 Active 活动的 则让 父类处置
+                return super.onPreferenceTreeClick(preference);
+            }
+            /**
+             * Bypass dialog and connect to unsecured networks, or previously connected saved
+             * networks, or Passpoint provided networks.
+             */
+            WifiConfiguration config = mSelectedAccessPoint.getConfig();
+            if (mSelectedAccessPoint.getSecurity() == AccessPoint.SECURITY_NONE) { // 如果当前 AccessPoint 是不需要认证的 那么直接 连接它 通过 WifiConfiguration
+                mSelectedAccessPoint.generateOpenNetworkConfig();
+                connect(mSelectedAccessPoint.getConfig(), mSelectedAccessPoint.isSaved());
+            } else if (mSelectedAccessPoint.isSaved() && config != null
+                    && config.getNetworkSelectionStatus() != null
+                    && config.getNetworkSelectionStatus().getHasEverConnected()) {
+                connect(config, true /* isSavedNetwork */);
+            } else if (mSelectedAccessPoint.isPasspoint()) {  // 如果当前网络是 Passpoint类型的网络 那么 直接连接 
+                // Access point provided by an installed Passpoint provider, connect using
+                // the associated config.
+                connect(config, true /* isSavedNetwork */);
+            } else {
+                showDialog(mSelectedAccessPoint, WifiConfigUiBase.MODE_CONNECT);  // 否则就弹出对话框  请求用户进行认证输入 已达到连接的目的 UA20执行的函数
+            }
+        } else if (preference == mAddPreference) {
+            onAddNetworkPressed(); // 如果点击的是  mAddPreference  添加网络那项 Preference  那么执行   onAddNetworkPressed() 执行添加网络的操作
+        } else {
+            return super.onPreferenceTreeClick(preference);
+        }
+        return true;
+    }
+
+
+
+
+/packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java
+      private void showDialog(AccessPoint accessPoint, int dialogMode) {
+        if (accessPoint != null) {
+            WifiConfiguration config = accessPoint.getConfig();
+            if (isEditabilityLockedDown(getActivity(), config) && accessPoint.isActive()) {
+                RestrictedLockUtils.sendShowAdminSupportDetailsIntent(getActivity(),RestrictedLockUtils.getDeviceOwner(getActivity()));
+                return;
+            }
+        }
+
+        if (mDialog != null) {
+            removeDialog(WIFI_DIALOG_ID);
+            mDialog = null;
+        }
+
+        // Save the access point and edit mode
+        mDlgAccessPoint = accessPoint;    // 对话框 所显示的 AccessPoint
+        mDialogMode = dialogMode;
+
+        showDialog(WIFI_DIALOG_ID);  // 显示Diaglog 对话框
+    }
+    
+
+
+/packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java 
+    @Override
+    public Dialog onCreateDialog(int dialogId) {
+        switch (dialogId) {
+            case WIFI_DIALOG_ID:
+                AccessPoint ap = mDlgAccessPoint; // For manual launch
+                if (ap == null) { // For re-launch from saved state
+                    if (mAccessPointSavedState != null) {
+                        ap = new AccessPoint(getActivity(), mAccessPointSavedState);
+                        // For repeated orientation changes
+                        mDlgAccessPoint = ap;
+                        // Reset the saved access point data
+                        mAccessPointSavedState = null;
+                    }
+                }
+                // If it's null, fine, it's for Add Network
+                mSelectedAccessPoint = ap;
+                mDialog = new WifiDialog(getActivity(), this, ap, mDialogMode【WifiConfigUiBase.MODE_CONNECT】,/* no hide submit/connect */ false);  // 
+                return mDialog;
+                ......
+             }
+             
+
+
+
+
+/packages/apps/Settings/src/com/android/settings/wifi/WifiDialog.java
+
+private WifiConfigController mController;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        mView = getLayoutInflater().inflate(R.layout.wifi_dialog, null);
+        setView(mView);
+        setInverseBackgroundForced(true);
+        mController = new WifiConfigController(this, mView, mAccessPoint 【NULL】, mMode 【WifiConfigUiBase.MODE_CONNECT】); // 依据 新建了 WifiConfigController  业务交由WifiConfigController实现
+        super.onCreate(savedInstanceState);
+
+        if (mHideSubmitButton) {
+            mController.hideSubmitButton();
+        } else {
+            /* During creation, the submit button can be unavailable to determine
+             * visibility. Right after creation, update button visibility */
+            mController.enableSubmitIfAppropriate();
+        }
+
+        if (mAccessPoint == null) {
+            mController.hideForgetButton();
+        }
+    }
+
+
+/packages/apps/Settings/src/com/android/settings/wifi/WifiConfigController.java   // WifiConfigController 是对话框的控制对象  具体UA17中查看
+
+          public WifiConfigController(WifiConfigUiBase parent, View view, AccessPoint accessPoint【null】,int mode 【WifiConfigUiBase.MODE_CONNECT】) {
+        mConfigUi = parent;
+
+        mView = view;
+        mAccessPoint = accessPoint;
+        mAccessPointSecurity = (accessPoint == null) ? AccessPoint.SECURITY_NONE : accessPoint.getSecurity();  // mAccessPointSecurity在此等于  AccessPoint.SECURITY_NONE
+        mMode = mode;
+
+        mTextViewChangedHandler = new Handler();
+        
+        .....
+        
+        
+        }
+        
+```
+
+###WIFI UA20 对话框布局代码分析
+
+[R.layout.wifi_dialog](file/wifi_dialog.xml)
+```
+/packages/apps/Settings/src/com/android/settings/wifi/WifiDialog.java
+
+ R.layout.wifi_dialog
+ 
+ 
+             <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    style="@style/wifi_item" >
+                <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        style="@style/wifi_item_label"
+                        android:text="@string/wifi_ssid"   //  热点的名字
+                        android:textDirection="locale" />
+
+                <EditText android:id="@+id/ssid"   // 输入热点密码的输入框  UA20对应的 弹出框输入 EditText
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        style="@style/wifi_item_edit_content"
+                        android:hint="@string/wifi_ssid_hint"
+                        android:maxLength="32"
+                        android:singleLine="true"
+                        android:inputType="textNoSuggestions" />
+             </LinearLayout>
+      
+
+                <CheckBox android:id="@+id/show_password"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        style="@style/wifi_item_content"
+                        android:textSize="14sp"
+                        android:text="@string/wifi_show_password" />  // 是否明文显示密码 选框
+                        
+                        
+                     <Spinner android:id="@+id/ca_cert"   // 证书下拉框
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            style="@style/wifi_item_spinner"
+                            android:prompt="@string/wifi_eap_ca_cert" />
+                        
+                    <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            style="@style/wifi_item_label"
+                            android:text="@string/wifi_eap_method" />
+
+                    <Spinner android:id="@+id/method"  // EAP 方法下拉框
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            style="@style/wifi_item_spinner"
+                            android:prompt="@string/wifi_eap_method"
+                            android:entries="@array/wifi_eap_method" />
+                      <Spinner android:id="@+id/phase2"  // eap 阶段2 身份验证下拉框
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            style="@style/wifi_item_spinner"
+                            android:prompt="@string/please_select_phase2"
+                            android:entries="@array/wifi_phase2_entries" />
+
+
+                            
+                 <Spinner android:id="@+id/proxy_settings"   // 代理设置 下拉框
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        style="@style/wifi_item_spinner"
+                        android:prompt="@string/proxy_settings_title"
+                        android:entries="@array/wifi_proxy_settings" />
+                        
+                        
+                   <Spinner android:id="@+id/ip_settings"  // Ip代理设置下拉框
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        style="@style/wifi_item_spinner"
+                        android:prompt="@string/wifi_ip_settings"
+                        android:entries="@array/wifi_ip_settings" />
+```
+
+
+
+
+
+## WIFI UA21分析 (同UA14)
+###WIFI UA21 操作列
+<img src="img/10.png" width = "25%" height="25%"/>
+1. **UA编号**   UA21   (同UA14)
+1. **UA说明**  **Wifi搜素到的热点 LongPressPreference 的长按事件弹出的上下文菜单**
+1. **UA触发函数**    packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java  onPreferenceTreeClick 点击事件执行了函数 showDialog(mSelectedAccessPoint, WifiConfigUiBase.MODE_CONNECT);
+  弹出的对话框
+
+1. **UA字符可选值**    
+1. **UA布局及ID**    
+1. **代码Key**     
+1. **代码可选值  **
+1. **数据库Key **  
+1. **数据库可选值 **   
+1. **SP的Key**  
+1. **SP可选值**  
+1. **UA操作后UI显示类**    packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java  onPreferenceTreeClick   showDialog(mSelectedAccessPoint, WifiConfigUiBase.MODE_CONNECT);
+1. **UA触发函数所在类**   
+---
+
+
+
+###WIFI UA21 代码分析
+```
+/packages/apps/Settings/src/com/android/settings/wifi/LongPressAccessPointPreference.java
+public class LongPressAccessPointPreference extends AccessPointPreference {
+
+    @Override
+    public void onBindViewHolder(final PreferenceViewHolder view) {
+        super.onBindViewHolder(view);
+        if (mFragment != null) {
+            view.itemView.setOnCreateContextMenuListener(mFragment); // 长按事件的响应类
+            view.itemView.setTag(this); // 设置tag 用于保存当前preference
+            view.itemView.setLongClickable(true);  // 长按事件使能
+        }
+    }
+    
+  }
+    
+
+
+
+
+
+
+
+/packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java
+    @Override
+    public void onCreateContextMenu(ContextMenu menu, View view, ContextMenuInfo info) { // 长按 AccessPoint时触发的函数
+            Preference preference = (Preference) view.getTag();
+
+            if (preference instanceof LongPressAccessPointPreference) {
+            
+            //  private AccessPoint mSelectedAccessPoint;  用户长按的Prference 对应的  AccessPoint 
+                mSelectedAccessPoint =((LongPressAccessPointPreference) preference).getAccessPoint();
+                menu.setHeaderTitle(mSelectedAccessPoint.getSsid()); //  长按 显示的第一个项  为 热点的名字
+                if (mSelectedAccessPoint.isConnectable()) {  // 如果当前网络热点有信号 的话 isConnectable() = true
+                //   <string name="wifi_menu_connect" msgid="4996220309848349408">"连接到网络"</string>    显示  连接到网络
+                    menu.add(Menu.NONE, MENU_ID_CONNECT, 0, R.string.wifi_menu_connect);
+                }
+
+                WifiConfiguration config = mSelectedAccessPoint.getConfig();
+                // Some configs are ineditable
+                if (isEditabilityLockedDown(getActivity(), config)) {  // 判断该热点对应的 WifiConfiguration 是否可修改
+                    return;
+                }
+
+                if (mSelectedAccessPoint.isSaved() || mSelectedAccessPoint.isEphemeral()) { // 如果当前preference 对应的AccessPoint 是已保存过 或是 临时的话  显示
+                    // Allow forgetting a network if either the network is saved or ephemerally
+                    // connected. (In the latter case, "forget" blacklists the network so it won't
+                    // be used again, ephemerally).
+                    // <string name="wifi_menu_forget" msgid="8736964302477327114">"取消保存网络"</string>
+                    menu.add(Menu.NONE, MENU_ID_FORGET, 0, R.string.wifi_menu_forget);
+                }
+                if (mSelectedAccessPoint.isSaved()) {
+                //  <string name="wifi_menu_modify" msgid="2068554918652440105">"修改网络"</string>
+                    menu.add(Menu.NONE, MENU_ID_MODIFY, 0, R.string.wifi_menu_modify);
+                    NfcAdapter nfcAdapter = NfcAdapter.getDefaultAdapter(getActivity());
+                    if (nfcAdapter != null && nfcAdapter.isEnabled() && mSelectedAccessPoint.getSecurity() != AccessPoint.SECURITY_NONE) {
+                        // Only allow writing of NFC tags for password-protected networks.
+                        // <string name="wifi_menu_write_to_nfc" msgid="7692881642188240324">"写入NFC标签"</string>  只在 NFC有效的条件下
+                        menu.add(Menu.NONE, MENU_ID_WRITE_NFC, 0, R.string.wifi_menu_write_to_nfc);
+                    }
+                }
+            }
+    }
+    
+/packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java
+   static boolean isEditabilityLockedDown(Context context, WifiConfiguration config) {
+        return !canModifyNetwork(context, config); //canModifyNetwork 用于判断是否 WifiConfiguration 可修改    
+    }
+    
+
+/packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java
+    static boolean canModifyNetwork(Context context, WifiConfiguration config) {
+        if (config == null) {
+            return true;
+        }
+        final DevicePolicyManager dpm = (DevicePolicyManager) context.getSystemService( Context.DEVICE_POLICY_SERVICE);
+        final PackageManager pm = context.getPackageManager();
+        if (pm.hasSystemFeature(PackageManager.FEATURE_DEVICE_ADMIN) && dpm == null) {
+            return false;
+        }
+
+        boolean isConfigEligibleForLockdown = false;
+        if (dpm != null) {
+            final ComponentName deviceOwner = dpm.getDeviceOwnerComponentOnAnyUser();
+            if (deviceOwner != null) {
+                final int deviceOwnerUserId = dpm.getDeviceOwnerUserId();
+                try {
+                    final int deviceOwnerUid = pm.getPackageUidAsUser(deviceOwner.getPackageName(),deviceOwnerUserId);
+                    isConfigEligibleForLockdown = deviceOwnerUid == config.creatorUid;
+                } catch (NameNotFoundException e) {
+                    // don't care
+                }
+            }
+        }
+        if (!isConfigEligibleForLockdown) {
+            return true;
+        }
+//         public static final String WIFI_DEVICE_OWNER_CONFIGS_LOCKDOWN = "wifi_device_owner_configs_lockdown"; 用于判断是否允许用户修改wifi配置的数据库项  1-true  0 false
+        final ContentResolver resolver = context.getContentResolver();
+        final boolean isLockdownFeatureEnabled = Settings.Global.getInt(resolver,Settings.Global.WIFI_DEVICE_OWNER_CONFIGS_LOCKDOWN, 0) != 0;
+        return !isLockdownFeatureEnabled;
+    }
+    
+    
+    
+/frameworks/base/packages/SettingsLib/src/com/android/settingslib/wifi/AccessPoint.java
+    public boolean isConnectable() {
+        return getLevel() != -1 && getDetailedState() == null;
+    }    
+    public int getLevel() {
+        return WifiManager.calculateSignalLevel(mRssi, SIGNAL_LEVELS);
+    }
+    public DetailedState getDetailedState() {
+        if (mNetworkInfo != null) {
+            return mNetworkInfo.getDetailedState();
+        }
+        Log.w(TAG, "NetworkInfo is null, cannot return detailed state");
+        return null;
+    }
+    
+
+/frameworks/base/packages/SettingsLib/src/com/android/settingslib/wifi/AccessPoint.java
+public boolean isSaved() {
+        return networkId != WifiConfiguration.INVALID_NETWORK_ID;
+    }
+
+/frameworks/base/packages/SettingsLib/src/com/android/settingslib/wifi/AccessPoint.java
+    public boolean isEphemeral() {
+        return mInfo != null && mInfo.isEphemeral() &&
+                mNetworkInfo != null && mNetworkInfo.getState() != State.DISCONNECTED;
+    }
+    
+
+    
+    
+/packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java
+     @Override
+    public boolean onContextItemSelected(MenuItem item) {
+        if (mSelectedAccessPoint == null) {
+            return super.onContextItemSelected(item);
+        }
+        switch (item.getItemId()) { // 用户选择 上下文按钮
+            case MENU_ID_CONNECT: {  // 选择  连接到网络  UA20 执行到这里    连接到网络
+                boolean isSavedNetwork = mSelectedAccessPoint.isSaved(); // 判断当前网络是否有 networkId
+                if (isSavedNetwork) {
+                    connect(mSelectedAccessPoint.getConfig(), isSavedNetwork); // 如果有执行 connect(final WifiConfiguration config, boolean isSavedNetwork) 方法
+                // // 如果当前网络没有加密认证 则先生成 networkdId 再 connect(final WifiConfiguration config, boolean isSavedNetwork)
+                } else if (mSelectedAccessPoint.getSecurity() == AccessPoint.SECURITY_NONE) { 
+                    /** Bypass dialog for unsecured networks */
+                    mSelectedAccessPoint.generateOpenNetworkConfig();  // 用于产生 WifiConfiguration 
+                    connect(mSelectedAccessPoint.getConfig(), isSavedNetwork);
+                } else {
+                    showDialog(mSelectedAccessPoint, WifiConfigUiBase.MODE_CONNECT); // 弹出 Dialog框 用于 用户输入 一些认证信息才能连接
+                }
+                return true;
+            }
+            case MENU_ID_FORGET: {   // 选择 取消保存网络
+                forget();   
+                return true;
+            }
+            case MENU_ID_MODIFY: {  // 选择 修改网络
+                showDialog(mSelectedAccessPoint, WifiConfigUiBase.MODE_MODIFY);
+                return true;
+            }
+            case MENU_ID_WRITE_NFC:  // 选择 写入 NFC标签
+                showDialog(WRITE_NFC_DIALOG_ID);
+                return true;
+
+        }
+        return super.onContextItemSelected(item);
+    }
+    
+   
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+## WIFI UA22分析 (同UA14)
+###WIFI UA22 操作列
+<img src="img/11.png" width = "25%" height="25%"/>
+1. **UA编号**   UA22   (同UA14)
+1. **UA说明**  **Wifi搜素到的热点 LongPressPreference 的长按事件弹出的上下文菜单中的 Forget 忘记当前已保存的网络菜单选项**
+1. **UA触发函数**  packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java  onPreferenceTreeClick   menu.add(Menu.NONE, MENU_ID_FORGET, 0, R.string.wifi_menu_forget);
+   packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java  forget();   
+1. **UA字符可选值**    
+1. **UA布局及ID**    
+1. **代码Key**     
+1. **代码可选值  **
+1. **数据库Key **  
+1. **数据库可选值 **   
+1. **SP的Key**  
+1. **SP可选值**  
+1. **UA操作后UI显示类**    packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java  onPreferenceTreeClick   menu.add(Menu.NONE, MENU_ID_FORGET, 0, R.string.wifi_menu_forget);
+1. **UA触发函数所在类**     packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java  forget();   
+---
+
+
+
+###WIFI UA22 代码分析
+```
+/packages/apps/Settings/src/com/android/settings/wifi/LongPressAccessPointPreference.java
+public class LongPressAccessPointPreference extends AccessPointPreference {
+
+    @Override
+    public void onBindViewHolder(final PreferenceViewHolder view) {
+        super.onBindViewHolder(view);
+        if (mFragment != null) {
+            view.itemView.setOnCreateContextMenuListener(mFragment); // 长按事件的响应类
+            view.itemView.setTag(this); // 设置tag 用于保存当前preference
+            view.itemView.setLongClickable(true);  // 长按事件使能
+        }
+    }
+    
+  }
+    
+
+
+
+
+
+
+
+/packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java
+    @Override
+    public void onCreateContextMenu(ContextMenu menu, View view, ContextMenuInfo info) { // 长按 AccessPoint时触发的函数
+            Preference preference = (Preference) view.getTag();
+
+            if (preference instanceof LongPressAccessPointPreference) {
+            
+            //  private AccessPoint mSelectedAccessPoint;  用户长按的Prference 对应的  AccessPoint 
+                mSelectedAccessPoint =((LongPressAccessPointPreference) preference).getAccessPoint();
+                menu.setHeaderTitle(mSelectedAccessPoint.getSsid()); //  长按 显示的第一个项  为 热点的名字
+                if (mSelectedAccessPoint.isConnectable()) {  // 如果当前网络热点有信号 的话 isConnectable() = true
+                //   <string name="wifi_menu_connect" msgid="4996220309848349408">"连接到网络"</string>    显示  连接到网络
+                    menu.add(Menu.NONE, MENU_ID_CONNECT, 0, R.string.wifi_menu_connect);
+                }
+
+                WifiConfiguration config = mSelectedAccessPoint.getConfig();
+                // Some configs are ineditable
+                if (isEditabilityLockedDown(getActivity(), config)) {  // 判断该热点对应的 WifiConfiguration 是否可修改
+                    return;
+                }
+
+                if (mSelectedAccessPoint.isSaved() || mSelectedAccessPoint.isEphemeral()) { // 如果当前preference 对应的AccessPoint 是已保存过 或是 临时的话  显示
+                    // Allow forgetting a network if either the network is saved or ephemerally
+                    // connected. (In the latter case, "forget" blacklists the network so it won't
+                    // be used again, ephemerally).
+                    // <string name="wifi_menu_forget" msgid="8736964302477327114">"取消保存网络"</string>
+                    menu.add(Menu.NONE, MENU_ID_FORGET, 0, R.string.wifi_menu_forget);
+                }
+                if (mSelectedAccessPoint.isSaved()) {
+                //  <string name="wifi_menu_modify" msgid="2068554918652440105">"修改网络"</string>
+                    menu.add(Menu.NONE, MENU_ID_MODIFY, 0, R.string.wifi_menu_modify);
+                    NfcAdapter nfcAdapter = NfcAdapter.getDefaultAdapter(getActivity());
+                    if (nfcAdapter != null && nfcAdapter.isEnabled() && mSelectedAccessPoint.getSecurity() != AccessPoint.SECURITY_NONE) {
+                        // Only allow writing of NFC tags for password-protected networks.
+                        // <string name="wifi_menu_write_to_nfc" msgid="7692881642188240324">"写入NFC标签"</string>  只在 NFC有效的条件下
+                        menu.add(Menu.NONE, MENU_ID_WRITE_NFC, 0, R.string.wifi_menu_write_to_nfc);
+                    }
+                }
+            }
+    }
+    
+/packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java
+   static boolean isEditabilityLockedDown(Context context, WifiConfiguration config) {
+        return !canModifyNetwork(context, config); //canModifyNetwork 用于判断是否 WifiConfiguration 可修改    
+    }
+    
+
+/packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java
+    static boolean canModifyNetwork(Context context, WifiConfiguration config) {
+        if (config == null) {
+            return true;
+        }
+        final DevicePolicyManager dpm = (DevicePolicyManager) context.getSystemService( Context.DEVICE_POLICY_SERVICE);
+        final PackageManager pm = context.getPackageManager();
+        if (pm.hasSystemFeature(PackageManager.FEATURE_DEVICE_ADMIN) && dpm == null) {
+            return false;
+        }
+
+        boolean isConfigEligibleForLockdown = false;
+        if (dpm != null) {
+            final ComponentName deviceOwner = dpm.getDeviceOwnerComponentOnAnyUser();
+            if (deviceOwner != null) {
+                final int deviceOwnerUserId = dpm.getDeviceOwnerUserId();
+                try {
+                    final int deviceOwnerUid = pm.getPackageUidAsUser(deviceOwner.getPackageName(),deviceOwnerUserId);
+                    isConfigEligibleForLockdown = deviceOwnerUid == config.creatorUid;
+                } catch (NameNotFoundException e) {
+                    // don't care
+                }
+            }
+        }
+        if (!isConfigEligibleForLockdown) {
+            return true;
+        }
+//         public static final String WIFI_DEVICE_OWNER_CONFIGS_LOCKDOWN = "wifi_device_owner_configs_lockdown"; 用于判断是否允许用户修改wifi配置的数据库项  1-true  0 false
+        final ContentResolver resolver = context.getContentResolver();
+        final boolean isLockdownFeatureEnabled = Settings.Global.getInt(resolver,Settings.Global.WIFI_DEVICE_OWNER_CONFIGS_LOCKDOWN, 0) != 0;
+        return !isLockdownFeatureEnabled;
+    }
+    
+    
+    
+/frameworks/base/packages/SettingsLib/src/com/android/settingslib/wifi/AccessPoint.java
+    public boolean isConnectable() {
+        return getLevel() != -1 && getDetailedState() == null;
+    }    
+    public int getLevel() {
+        return WifiManager.calculateSignalLevel(mRssi, SIGNAL_LEVELS);
+    }
+    public DetailedState getDetailedState() {
+        if (mNetworkInfo != null) {
+            return mNetworkInfo.getDetailedState();
+        }
+        Log.w(TAG, "NetworkInfo is null, cannot return detailed state");
+        return null;
+    }
+    
+
+/frameworks/base/packages/SettingsLib/src/com/android/settingslib/wifi/AccessPoint.java
+public boolean isSaved() {
+        return networkId != WifiConfiguration.INVALID_NETWORK_ID;
+    }
+
+/frameworks/base/packages/SettingsLib/src/com/android/settingslib/wifi/AccessPoint.java
+    public boolean isEphemeral() {
+        return mInfo != null && mInfo.isEphemeral() &&
+                mNetworkInfo != null && mNetworkInfo.getState() != State.DISCONNECTED;
+    }
+    
+
+    
+    
+/packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java
+     @Override
+    public boolean onContextItemSelected(MenuItem item) {
+        if (mSelectedAccessPoint == null) {
+            return super.onContextItemSelected(item);
+        }
+        switch (item.getItemId()) { // 用户选择 上下文按钮
+            case MENU_ID_CONNECT: {  // 选择  连接到网络  UA20 执行到这里    连接到网络
+                boolean isSavedNetwork = mSelectedAccessPoint.isSaved(); // 判断当前网络是否有 networkId
+                if (isSavedNetwork) {
+                    connect(mSelectedAccessPoint.getConfig(), isSavedNetwork); // 如果有执行 connect(final WifiConfiguration config, boolean isSavedNetwork) 方法
+                // // 如果当前网络没有加密认证 则先生成 networkdId 再 connect(final WifiConfiguration config, boolean isSavedNetwork)
+                } else if (mSelectedAccessPoint.getSecurity() == AccessPoint.SECURITY_NONE) { 
+                    /** Bypass dialog for unsecured networks */
+                    mSelectedAccessPoint.generateOpenNetworkConfig();  // 用于产生 WifiConfiguration 
+                    connect(mSelectedAccessPoint.getConfig(), isSavedNetwork);
+                } else {
+                    showDialog(mSelectedAccessPoint, WifiConfigUiBase.MODE_CONNECT); // 弹出 Dialog框 用于 用户输入 一些认证信息才能连接
+                }
+                return true;
+            }
+            case MENU_ID_FORGET: {   // 选择 取消保存网络
+                forget();      //  UA22 执行的 逻辑业务 
+                return true;
+            }
+            case MENU_ID_MODIFY: {  // 选择 修改网络
+                showDialog(mSelectedAccessPoint, WifiConfigUiBase.MODE_MODIFY);
+                return true;
+            }
+            case MENU_ID_WRITE_NFC:  // 选择 写入 NFC标签
+                showDialog(WRITE_NFC_DIALOG_ID);
+                return true;
+
+        }
+        return super.onContextItemSelected(item);
+    }
+    
+   
+
+
+
+```
+
+
+
+
+
+
+## WIFI UA23分析 (同UA14)
+###WIFI UA23 操作列
+<img src="img/11.png" width = "25%" height="25%"/><img src="img/28.png" width = "25%" height="25%"/>
+1. **UA编号**   UA23   (同UA14)
+1. **UA说明**  **Wifi搜素到的热点 LongPressPreference 的长按事件弹出的上下文菜单中的 修改网络 的 菜单选项**
+1. **UA触发函数**  packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java  onPreferenceTreeClick    menu.add(Menu.NONE, MENU_ID_MODIFY, 0, R.string.wifi_menu_modify);
+   showDialog(mSelectedAccessPoint, WifiConfigUiBase.MODE_MODIFY);  // 展示修改网络的Dialog  UA23 的业务函数 
+1. **UA字符可选值**    
+1. **UA布局及ID**    
+1. **代码Key**     
+1. **代码可选值  **
+1. **数据库Key **  
+1. **数据库可选值 **   
+1. **SP的Key**  
+1. **SP可选值**  
+1. **UA操作后UI显示类**    packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java  onPreferenceTreeClick    menu.add(Menu.NONE, MENU_ID_MODIFY, 0, R.string.wifi_menu_modify);
+1. **UA触发函数所在类**    showDialog(mSelectedAccessPoint, WifiConfigUiBase.MODE_MODIFY);  // 展示修改网络的Dialog  UA23 的业务函数  
+---
+
+
+
+###WIFI UA23 代码分析
+```
+/packages/apps/Settings/src/com/android/settings/wifi/LongPressAccessPointPreference.java
+public class LongPressAccessPointPreference extends AccessPointPreference {
+
+    @Override
+    public void onBindViewHolder(final PreferenceViewHolder view) {
+        super.onBindViewHolder(view);
+        if (mFragment != null) {
+            view.itemView.setOnCreateContextMenuListener(mFragment); // 长按事件的响应类
+            view.itemView.setTag(this); // 设置tag 用于保存当前preference
+            view.itemView.setLongClickable(true);  // 长按事件使能
+        }
+    }
+    
+  }
+    
+
+
+
+
+
+
+
+/packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java
+    @Override
+    public void onCreateContextMenu(ContextMenu menu, View view, ContextMenuInfo info) { // 长按 AccessPoint时触发的函数
+            Preference preference = (Preference) view.getTag();
+
+            if (preference instanceof LongPressAccessPointPreference) {
+            
+            //  private AccessPoint mSelectedAccessPoint;  用户长按的Prference 对应的  AccessPoint 
+                mSelectedAccessPoint =((LongPressAccessPointPreference) preference).getAccessPoint();
+                menu.setHeaderTitle(mSelectedAccessPoint.getSsid()); //  长按 显示的第一个项  为 热点的名字
+                if (mSelectedAccessPoint.isConnectable()) {  // 如果当前网络热点有信号 的话 isConnectable() = true
+                //   <string name="wifi_menu_connect" msgid="4996220309848349408">"连接到网络"</string>    显示  连接到网络
+                    menu.add(Menu.NONE, MENU_ID_CONNECT, 0, R.string.wifi_menu_connect);
+                }
+
+                WifiConfiguration config = mSelectedAccessPoint.getConfig();
+                // Some configs are ineditable
+                if (isEditabilityLockedDown(getActivity(), config)) {  // 判断该热点对应的 WifiConfiguration 是否可修改
+                    return;
+                }
+
+                if (mSelectedAccessPoint.isSaved() || mSelectedAccessPoint.isEphemeral()) { // 如果当前preference 对应的AccessPoint 是已保存过 或是 临时的话  显示
+                    // Allow forgetting a network if either the network is saved or ephemerally
+                    // connected. (In the latter case, "forget" blacklists the network so it won't
+                    // be used again, ephemerally).
+                    // <string name="wifi_menu_forget" msgid="8736964302477327114">"取消保存网络"</string>
+                    menu.add(Menu.NONE, MENU_ID_FORGET, 0, R.string.wifi_menu_forget);
+                }
+                if (mSelectedAccessPoint.isSaved()) {
+                //  <string name="wifi_menu_modify" msgid="2068554918652440105">"修改网络"</string>
+                    menu.add(Menu.NONE, MENU_ID_MODIFY, 0, R.string.wifi_menu_modify);
+                    NfcAdapter nfcAdapter = NfcAdapter.getDefaultAdapter(getActivity());
+                    if (nfcAdapter != null && nfcAdapter.isEnabled() && mSelectedAccessPoint.getSecurity() != AccessPoint.SECURITY_NONE) {
+                        // Only allow writing of NFC tags for password-protected networks.
+                        // <string name="wifi_menu_write_to_nfc" msgid="7692881642188240324">"写入NFC标签"</string>  只在 NFC有效的条件下
+                        menu.add(Menu.NONE, MENU_ID_WRITE_NFC, 0, R.string.wifi_menu_write_to_nfc);
+                    }
+                }
+            }
+    }
+    
+/packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java
+   static boolean isEditabilityLockedDown(Context context, WifiConfiguration config) {
+        return !canModifyNetwork(context, config); //canModifyNetwork 用于判断是否 WifiConfiguration 可修改    
+    }
+    
+
+/packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java
+    static boolean canModifyNetwork(Context context, WifiConfiguration config) {
+        if (config == null) {
+            return true;
+        }
+        final DevicePolicyManager dpm = (DevicePolicyManager) context.getSystemService( Context.DEVICE_POLICY_SERVICE);
+        final PackageManager pm = context.getPackageManager();
+        if (pm.hasSystemFeature(PackageManager.FEATURE_DEVICE_ADMIN) && dpm == null) {
+            return false;
+        }
+
+        boolean isConfigEligibleForLockdown = false;
+        if (dpm != null) {
+            final ComponentName deviceOwner = dpm.getDeviceOwnerComponentOnAnyUser();
+            if (deviceOwner != null) {
+                final int deviceOwnerUserId = dpm.getDeviceOwnerUserId();
+                try {
+                    final int deviceOwnerUid = pm.getPackageUidAsUser(deviceOwner.getPackageName(),deviceOwnerUserId);
+                    isConfigEligibleForLockdown = deviceOwnerUid == config.creatorUid;
+                } catch (NameNotFoundException e) {
+                    // don't care
+                }
+            }
+        }
+        if (!isConfigEligibleForLockdown) {
+            return true;
+        }
+//         public static final String WIFI_DEVICE_OWNER_CONFIGS_LOCKDOWN = "wifi_device_owner_configs_lockdown"; 用于判断是否允许用户修改wifi配置的数据库项  1-true  0 false
+        final ContentResolver resolver = context.getContentResolver();
+        final boolean isLockdownFeatureEnabled = Settings.Global.getInt(resolver,Settings.Global.WIFI_DEVICE_OWNER_CONFIGS_LOCKDOWN, 0) != 0;
+        return !isLockdownFeatureEnabled;
+    }
+    
+    
+    
+/frameworks/base/packages/SettingsLib/src/com/android/settingslib/wifi/AccessPoint.java
+    public boolean isConnectable() {
+        return getLevel() != -1 && getDetailedState() == null;
+    }    
+    public int getLevel() {
+        return WifiManager.calculateSignalLevel(mRssi, SIGNAL_LEVELS);
+    }
+    public DetailedState getDetailedState() {
+        if (mNetworkInfo != null) {
+            return mNetworkInfo.getDetailedState();
+        }
+        Log.w(TAG, "NetworkInfo is null, cannot return detailed state");
+        return null;
+    }
+    
+
+/frameworks/base/packages/SettingsLib/src/com/android/settingslib/wifi/AccessPoint.java
+public boolean isSaved() {
+        return networkId != WifiConfiguration.INVALID_NETWORK_ID;
+    }
+
+/frameworks/base/packages/SettingsLib/src/com/android/settingslib/wifi/AccessPoint.java
+    public boolean isEphemeral() {
+        return mInfo != null && mInfo.isEphemeral() &&
+                mNetworkInfo != null && mNetworkInfo.getState() != State.DISCONNECTED;
+    }
+    
+
+    
+    
+/packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java
+     @Override
+    public boolean onContextItemSelected(MenuItem item) {
+        if (mSelectedAccessPoint == null) {
+            return super.onContextItemSelected(item);
+        }
+        switch (item.getItemId()) { // 用户选择 上下文按钮
+            case MENU_ID_CONNECT: {  // 选择  连接到网络  UA20 执行到这里    连接到网络
+                boolean isSavedNetwork = mSelectedAccessPoint.isSaved(); // 判断当前网络是否有 networkId
+                if (isSavedNetwork) {
+                    connect(mSelectedAccessPoint.getConfig(), isSavedNetwork); // 如果有执行 connect(final WifiConfiguration config, boolean isSavedNetwork) 方法
+                // // 如果当前网络没有加密认证 则先生成 networkdId 再 connect(final WifiConfiguration config, boolean isSavedNetwork)
+                } else if (mSelectedAccessPoint.getSecurity() == AccessPoint.SECURITY_NONE) { 
+                    /** Bypass dialog for unsecured networks */
+                    mSelectedAccessPoint.generateOpenNetworkConfig();  // 用于产生 WifiConfiguration 
+                    connect(mSelectedAccessPoint.getConfig(), isSavedNetwork);
+                } else {
+                    showDialog(mSelectedAccessPoint, WifiConfigUiBase.MODE_CONNECT); // 弹出 Dialog框 用于 用户输入 一些认证信息才能连接
+                }
+                return true;
+            }
+            case MENU_ID_FORGET: {   // 选择 取消保存网络
+                forget();      //  UA22 执行的 逻辑业务 
+                return true;
+            }
+            case MENU_ID_MODIFY: {  // 选择 修改网络
+                showDialog(mSelectedAccessPoint, WifiConfigUiBase.MODE_MODIFY);  // 展示修改网络的Dialog  UA23 的业务函数
+                return true;
+            }
+            case MENU_ID_WRITE_NFC:  // 选择 写入 NFC标签
+                showDialog(WRITE_NFC_DIALOG_ID);
+                return true;
+
+        }
+        return super.onContextItemSelected(item);
+    }
+    
+   
+   
+   
+   /packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java
+      private void showDialog(AccessPoint accessPoint, int dialogMode  【WifiConfigUiBase.MODE_MODIFY】) {
+        if (accessPoint != null) {
+            WifiConfiguration config = accessPoint.getConfig();
+            if (isEditabilityLockedDown(getActivity(), config) && accessPoint.isActive()) {
+                RestrictedLockUtils.sendShowAdminSupportDetailsIntent(getActivity(),RestrictedLockUtils.getDeviceOwner(getActivity()));
+                return;
+            }
+        }
+
+        if (mDialog != null) {
+            removeDialog(WIFI_DIALOG_ID);
+            mDialog = null;
+        }
+
+        // Save the access point and edit mode
+        mDlgAccessPoint = accessPoint;    // 对话框 所显示的 AccessPoint
+        mDialogMode = dialogMode;
+
+        showDialog(WIFI_DIALOG_ID);  // 显示Diaglog 对话框
+    }
+    
+    
+    
+/packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java 
+    @Override
+    public Dialog onCreateDialog(int dialogId) {
+        switch (dialogId) {
+            case WIFI_DIALOG_ID:
+                AccessPoint ap = mDlgAccessPoint; // For manual launch
+                if (ap == null) { // For re-launch from saved state
+                    if (mAccessPointSavedState != null) {
+                        ap = new AccessPoint(getActivity(), mAccessPointSavedState);
+                        // For repeated orientation changes
+                        mDlgAccessPoint = ap;
+                        // Reset the saved access point data
+                        mAccessPointSavedState = null;
+                    }
+                }
+                // If it's null, fine, it's for Add Network
+                mSelectedAccessPoint = ap;
+                mDialog = new WifiDialog(getActivity(), this, ap, mDialogMode【WifiConfigUiBase.MODE_MODIFY】,/* no hide submit/connect */ false);  // 
+                return mDialog;
+                ......
+             }
+
+
+
+
+
+/packages/apps/Settings/src/com/android/settings/wifi/WifiDialog.java
+
+private WifiConfigController mController;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        mView = getLayoutInflater().inflate(R.layout.wifi_dialog, null);  //  对话框的布局文件
+        setView(mView);
+        setInverseBackgroundForced(true);
+        mController = new WifiConfigController(this, mView, mAccessPoint 【NULL】, mMode 【WifiConfigUiBase.MODE_MODIFY】); // 依据 新建了 WifiConfigController  业务交由WifiConfigController实现
+        super.onCreate(savedInstanceState);
+
+        if (mHideSubmitButton) {
+            mController.hideSubmitButton();
+        } else {
+            /* During creation, the submit button can be unavailable to determine
+             * visibility. Right after creation, update button visibility */
+            mController.enableSubmitIfAppropriate();
+        }
+
+        if (mAccessPoint == null) {
+            mController.hideForgetButton();
+        }
+    }
+
+
+/packages/apps/Settings/src/com/android/settings/wifi/WifiConfigController.java   // WifiConfigController 是对话框的控制对象  具体UA17中查看
+
+          public WifiConfigController(WifiConfigUiBase parent, View view, AccessPoint accessPoint【null】,int mode 【WifiConfigUiBase.MODE_MODIFY】) {
+        mConfigUi = parent;
+
+        mView = view;
+        mAccessPoint = accessPoint;
+        mAccessPointSecurity = (accessPoint == null) ? AccessPoint.SECURITY_NONE : accessPoint.getSecurity();  // mAccessPointSecurity在此等于  AccessPoint.SECURITY_NONE
+        mMode = mode;
+
+        mTextViewChangedHandler = new Handler();
+        
+        .....
+        
+        
+        }
+```
+
+
+
+
+## WIFI UA24分析 (同UA17)
+###WIFI UA24 操作列
+<img src="img/12.png" width = "25%" height="25%"/>
+1. **UA编号**   UA24   (同UA17)
+1. **UA说明**  **增加网络Preference点击后进入的增加网络页面中的 网络SSID输入框**
+1. **UA触发函数**  
+1. **UA字符可选值**    
+1. **UA布局及ID**    
+1. **代码Key**     
+1. **代码可选值  **
+1. **数据库Key **  
+1. **数据库可选值 **   
+1. **SP的Key**  
+1. **SP可选值**  
+1. **UA操作后UI显示类**   
+1. **UA触发函数所在类**    
+---
+
+
+
+###WIFI UA24 代码分析
+
+
+```
+
+
+/packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java 
+
+private Preference mAddPreference;
+    @Override
+    public void onCreate(Bundle icicle) {
+        Context prefContext = getPrefContext();
+        mAddPreference = new Preference(prefContext);
+        mAddPreference.setIcon(R.drawable.ic_menu_add_inset);
+        mAddPreference.setTitle(R.string.wifi_add_network);   // <string name="wifi_add_network" msgid="6234851776910938957">"添加网络"</string>
+        mAccessPointsPreferenceCategory.addPreference(mAddPreference);
+       }
+
+
+
+
+    @Override
+    public boolean onPreferenceTreeClick(Preference preference) {
+        // If the preference has a fragment set, open that
+        if (preference.getFragment() != null) {
+            preference.setOnPreferenceClickListener(null);
+            return super.onPreferenceTreeClick(preference);  // 如果 preference设置了 fragment 则 跳转到该 fragment
+        }
+
+        if (preference instanceof LongPressAccessPointPreference) {
+            mSelectedAccessPoint = ((LongPressAccessPointPreference) preference).getAccessPoint();
+            if (mSelectedAccessPoint == null) {
+                return false;
+            }
+            if (mSelectedAccessPoint.isActive()) {  // 如果当前 AccessPoint 是 Active 活动的 则让 父类处置
+                return super.onPreferenceTreeClick(preference);
+            }
+            /**
+             * Bypass dialog and connect to unsecured networks, or previously connected saved
+             * networks, or Passpoint provided networks.
+             */
+            WifiConfiguration config = mSelectedAccessPoint.getConfig();
+            if (mSelectedAccessPoint.getSecurity() == AccessPoint.SECURITY_NONE) { // 如果当前 AccessPoint 是不需要认证的 那么直接 连接它 通过 WifiConfiguration
+                mSelectedAccessPoint.generateOpenNetworkConfig();
+                connect(mSelectedAccessPoint.getConfig(), mSelectedAccessPoint.isSaved());
+            } else if (mSelectedAccessPoint.isSaved() && config != null
+                    && config.getNetworkSelectionStatus() != null
+                    && config.getNetworkSelectionStatus().getHasEverConnected()) {
+                connect(config, true /* isSavedNetwork */);
+            } else if (mSelectedAccessPoint.isPasspoint()) {  // 如果当前网络是 Passpoint类型的网络 那么 直接连接 
+                // Access point provided by an installed Passpoint provider, connect using
+                // the associated config.
+                connect(config, true /* isSavedNetwork */);
+            } else {
+                showDialog(mSelectedAccessPoint, WifiConfigUiBase.MODE_CONNECT);  // 否则就弹出对话框  请求用户进行认证输入 已达到连接的目的
+            }
+        } else if (preference == mAddPreference) {
+            onAddNetworkPressed(); // 如果点击的是  mAddPreference  添加网络那项 Preference  那么执行   onAddNetworkPressed() 执行添加网络的操作
+        } else {
+            return super.onPreferenceTreeClick(preference);
+        }
+        return true;
+    }
+
+
+
+
+/packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java 
+
+
+void onAddNetworkPressed() {
+        mMetricsFeatureProvider.action(getActivity(), MetricsEvent.ACTION_WIFI_ADD_NETWORK);
+        // No exact access point is selected.
+        mSelectedAccessPoint = null;
+        showDialog(null, WifiConfigUiBase.MODE_CONNECT); // 显示 添加网络的Dialog    此处 mSelectedAccessPoint 为空
+    }
+    
+    
+    
+    
+    
+/packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java 
+    @Override
+    public Dialog onCreateDialog(int dialogId) {
+        switch (dialogId) {
+            case WIFI_DIALOG_ID:
+                AccessPoint ap = mDlgAccessPoint; // For manual launch
+                if (ap == null) { // For re-launch from saved state
+                    if (mAccessPointSavedState != null) {
+                        ap = new AccessPoint(getActivity(), mAccessPointSavedState);
+                        // For repeated orientation changes
+                        mDlgAccessPoint = ap;
+                        // Reset the saved access point data
+                        mAccessPointSavedState = null;
+                    }
+                }
+                // If it's null, fine, it's for Add Network
+                mSelectedAccessPoint = ap;
+                mDialog = new WifiDialog(getActivity(), this, ap【NULL】, mDialogMode【WifiConfigUiBase.MODE_MODIFY】,/* no hide submit/connect */ false);  // 
+                return mDialog;
+                ......
+             }
+             
+             
+             
+/packages/apps/Settings/src/com/android/settings/wifi/WifiDialog.java   
+private WifiConfigController mController;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        mView = getLayoutInflater().inflate(R.layout.wifi_dialog, null);  //  对话框的布局文件
+        setView(mView);
+        setInverseBackgroundForced(true);
+        mController = new WifiConfigController(this, mView, mAccessPoint 【NULL】, mMode 【WifiConfigUiBase.MODE_MODIFY】); // 依据 新建了 WifiConfigController  业务交由WifiConfigController实现
+        super.onCreate(savedInstanceState);
+
+        if (mHideSubmitButton) {
+            mController.hideSubmitButton();
+        } else {
+            /* During creation, the submit button can be unavailable to determine
+             * visibility. Right after creation, update button visibility */
+            mController.enableSubmitIfAppropriate();
+        }
+
+        if (mAccessPoint == null) {
+            mController.hideForgetButton();
+        }
+    }
+
+
+/packages/apps/Settings/src/com/android/settings/wifi/WifiConfigController.java   // WifiConfigController 是对话框的控制对象  具体UA17中查看
+
+          public WifiConfigController(WifiConfigUiBase parent, View view, AccessPoint accessPoint【null】,int mode 【WifiConfigUiBase.MODE_MODIFY】) {
+        mConfigUi = parent;
+
+        mView = view;
+        mAccessPoint = accessPoint;
+        mAccessPointSecurity = (accessPoint == null) ? AccessPoint.SECURITY_NONE : accessPoint.getSecurity();  // mAccessPointSecurity在此等于  AccessPoint.SECURITY_NONE
+        mMode = mode;
+
+        mTextViewChangedHandler = new Handler();
+        
+        .....
+        
+        if (mAccessPoint == null) { // new network  // 当前的 AccessPoint为空 说明是 需要 新增 网络
+            mConfigUi.setTitle(R.string.wifi_add_network);  // <string name="wifi_add_network" msgid="6234851776910938957">"添加网络"</string>
+
+            mSsidView = (TextView) mView.findViewById(R.id.ssid);
+            mSsidView.addTextChangedListener(this);
+            mSecuritySpinner = ((Spinner) mView.findViewById(R.id.security)); 【安全性】
+            mSecuritySpinner.setOnItemSelectedListener(this);
+            mView.findViewById(R.id.type).setVisibility(View.VISIBLE);
+
+            showIpConfigFields();
+            showProxyFields();
+            mView.findViewById(R.id.wifi_advanced_toggle).setVisibility(View.VISIBLE);
+            ((CheckBox) mView.findViewById(R.id.wifi_advanced_togglebox)).setOnCheckedChangeListener(this); 【高级选项】
+            mConfigUi.setSubmitButton(res.getString(R.string.wifi_save));  // <string name="wifi_save" msgid="3331121567988522826">"保存"</string>
+        }
+        .....
+        
+        }
+
+```
+
+
+### UA24  布局分析
+<img src="img/12.png" width = "25%" height="25%"/>
+[R.layout.wifi_dialog](file/wifi_dialog.xml)
+```
+/packages/apps/Settings/src/com/android/settings/wifi/WifiDialog.java
+
+ R.layout.wifi_dialog
+ 
+........
+<EditText android:id="@+id/ssid"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        style="@style/wifi_item_edit_content"
+        android:hint="@string/wifi_ssid_hint"  // <string name="wifi_ssid_hint" msgid="897593601067321355">"输入SSID"</string>
+        android:maxLength="32"
+        android:singleLine="true"
+        android:inputType="textNoSuggestions" />
+........
+```
+
+
+
+## WIFI UA25分析 (接 UA25的代码分析)
+###WIFI UA25 操作列
+<img src="img/12.png" width = "25%" height="25%"/>
+1. **UA编号**   UA25   (同UA14)
+1. **UA说明**  **增加网络Preference点击后进入的增加网络页面中的  确认保存按钮**
+1. **UA触发函数**  
+1. **UA字符可选值**    
+1. **UA布局及ID**    
+1. **代码Key**     
+1. **代码可选值  **
+1. **数据库Key **  
+1. **数据库可选值 **   
+1. **SP的Key**  
+1. **SP可选值**  
+1. **UA操作后UI显示类**   
+1. **UA触发函数所在类**    
+---
+
+
+
+###WIFI UA25 代码分析
+
+
+```
+
+/packages/apps/Settings/src/com/android/settings/wifi/WifiConfigController.java   // WifiConfigController 是对话框的控制对象  具体UA17中查看
+private final WifiConfigUiBase mConfigUi;
+
+          public WifiConfigController(WifiConfigUiBase parent, View view, AccessPoint accessPoint【null】,int mode 【WifiConfigUiBase.MODE_MODIFY】) {
+        mConfigUi = parent;
+
+        mView = view;
+        mAccessPoint = accessPoint;
+        mAccessPointSecurity = (accessPoint == null) ? AccessPoint.SECURITY_NONE : accessPoint.getSecurity();  // mAccessPointSecurity在此等于  AccessPoint.SECURITY_NONE
+        mMode = mode;
+
+        mTextViewChangedHandler = new Handler();
+        
+        .....
+        
+        if (mAccessPoint == null) { // new network  // 当前的 AccessPoint为空 说明是 需要 新增 网络
+            mConfigUi.setTitle(R.string.wifi_add_network);  // <string name="wifi_add_network" msgid="6234851776910938957">"添加网络"</string>
+
+            mSsidView = (TextView) mView.findViewById(R.id.ssid);
+            mSsidView.addTextChangedListener(this);
+            mSecuritySpinner = ((Spinner) mView.findViewById(R.id.security)); 【安全性】
+            mSecuritySpinner.setOnItemSelectedListener(this);
+            mView.findViewById(R.id.type).setVisibility(View.VISIBLE);
+
+            showIpConfigFields();
+            showProxyFields();
+            mView.findViewById(R.id.wifi_advanced_toggle).setVisibility(View.VISIBLE);
+            ((CheckBox) mView.findViewById(R.id.wifi_advanced_togglebox)).setOnCheckedChangeListener(this); 【高级选项】
+            mConfigUi.setSubmitButton(res.getString(R.string.wifi_save));  // <string name="wifi_save" msgid="3331121567988522826">"保存"</string>
+        }
+        .....
+        
+        }
+        
+        
+        
+        
+ /packages/apps/Settings/src/com/android/settings/wifi/WifiDialog.java
+       @Override
+    public void onClick(DialogInterface dialogInterface, int id) {
+        if (mListener != null) {
+            switch (id) {
+                case BUTTON_SUBMIT:
+                    mListener.onSubmit(this); //  提交后 UA25 执行到这里
+                    break;
+                case BUTTON_FORGET:
+                    if (WifiSettings.isEditabilityLockedDown(
+                            getContext(), mAccessPoint.getConfig())) {
+                        RestrictedLockUtils.sendShowAdminSupportDetailsIntent(getContext(),
+                                RestrictedLockUtils.getDeviceOwner(getContext()));
+                        return;
+                    }
+                    mListener.onForget(this);
+                    break;
+            }
+        }
+    }
+    
+ /packages/apps/Settings/src/com/android/settings/wifi/WifiDialog.java 
+ private WifiConfigController mController;
+    @Override
+    public WifiConfigController getController() {
+        return mController;
+    }
+    
+    
+    
+/packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java
+     @Override
+    public void onForget(WifiDialog dialog) {
+        forget();
+    }
+
+
+
+/packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java
+    @Override
+    public void onSubmit(WifiDialog dialog) {
+        if (mDialog != null) {
+            submit(mDialog.getController());
+        }
+    }
+
+
+
+
+/packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java
+    /* package */ void submit(WifiConfigController configController) {
+
+        final WifiConfiguration config = configController.getConfig();
+
+        if (config == null) {  // 如果配置为空  那么尝试 连接它
+            if (mSelectedAccessPoint != null && mSelectedAccessPoint.isSaved()) { 
+            connect(mSelectedAccessPoint.getConfig(), true /* isSavedNetwork */);
+            }
+        } else if (configController.getMode() == WifiConfigUiBase.MODE_MODIFY) {
+            mWifiManager.save(config, mSaveListener);  // 如果 config 配置不为空  并且是保存模式  那么就 执行  mWifiManager.save  ▲6 分析UA后分析 WIFIManager
+        } else {
+            mWifiManager.save(config, mSaveListener);
+            if (mSelectedAccessPoint != null) { // Not an "Add network"
+                connect(config, false /* isSavedNetwork */);    //  尝试 连接
+            }
+        }
+
+        mWifiTracker.resumeScanning();
+    }
+    
+```
+
+
+
+
+
+
+
+## WIFI UA26分析 (同 UA19的代码分析)
+###WIFI UA26 操作列
+<img src="img/13.png" width = "25%" height="25%"/>
+1. **UA编号**   UA26   (同UA19)
+1. **UA说明**  **已保存网络页面中的 Preference Item的点击事件  无 长按事件**
+1. **UA触发函数**  SavedAccessPointsWifiSettings 中的   onPreferenceTreeClick 函数
+1. **UA字符可选值**    
+1. **UA布局及ID**    
+1. **代码Key**     
+1. **代码可选值  **
+1. **数据库Key **  
+1. **数据库可选值 **   
+1. **SP的Key**  
+1. **SP可选值**  
+1. **UA操作后UI显示类**   
+1. **UA触发函数所在类**    
+---
+
+
+
+###WIFI UA26 代码分析
+```
+
+ /packages/apps/Settings/src/com/android/settings/wifi/WifiSettings.java 
+  @Override
+    public boolean onPreferenceTreeClick(Preference preference) {
+        // If the preference has a fragment set, open that
+        if (preference.getFragment() != null) { 
+//  如果当前 从 preference获取的 Fragment 不为 空  那么  调用   super.onPreferenceTreeClick(preference)  
+// xml   文件 定义了 该 Fragment   SavedAccessPointsWifiSettings
+            preference.setOnPreferenceClickListener(null);
+            return super.onPreferenceTreeClick(preference);
+        }
+
+
+
+/packages/apps/Settings/src/com/android/settings/wifi/SavedAccessPointsWifiSettings.java
+
+
+public class SavedAccessPointsWifiSettings extends SettingsPreferenceFragment implements Indexable, WifiDialog.WifiDialogListener {
+        
+        
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        addPreferencesFromResource(R.xml.wifi_display_saved_access_points);  // 已保存热点的布局文件
+        mUserBadgeCache = new AccessPointPreference.UserBadgeCache(getPackageManager());
+         initPreferences();
+    }
+
+
+
+/packages/apps/Settings/src/com/android/settings/wifi/SavedAccessPointsWifiSettings.java
+    private void initPreferences() {
+        PreferenceScreen preferenceScreen = getPreferenceScreen();
+        final Context context = getPrefContext();
+
+        final List<AccessPoint> accessPoints = WifiSavedConfigUtils.getAllConfigs(context, mWifiManager); // 获得所有保存的热点的 AccessPoint
+        Collections.sort(accessPoints, SAVED_NETWORK_COMPARATOR); // 热点集合进行排序
+        preferenceScreen.removeAll();
+
+        final int accessPointsSize = accessPoints.size();
+        for (int i = 0; i < accessPointsSize; ++i){
+        // 新建LongPressAccessPointPreference  项Item  添加到  PreferenceScreen
+            LongPressAccessPointPreference preference =new LongPressAccessPointPreference(accessPoints.get(i), context, mUserBadgeCache, true, this);
+            preference.setIcon(null);  // 不设置图标
+            preferenceScreen.addPreference(preference);  // 添加到  preferenceScreen
+        }
+
+        if(getPreferenceScreen().getPreferenceCount() < 1) {
+            Log.w(TAG, "Saved networks activity loaded, but there are no saved networks!");
+        }
+    }
+}
+
+  
+/packages/apps/Settings/src/com/android/settings/wifi/SavedAccessPointsWifiSettings.java
+    @Override
+    public boolean onPreferenceTreeClick(Preference preference) {  // 已保存网络里的Preference 的点击事件
+        if (preference instanceof LongPressAccessPointPreference) {
+            showDialog((LongPressAccessPointPreference) preference, false);
+            return true;
+        } else{
+            return super.onPreferenceTreeClick(preference);
+        }
+    }
+     
+
+
+/packages/apps/Settings/src/com/android/settings/wifi/SavedAccessPointsWifiSettings.java
+    private void showDialog(LongPressAccessPointPreference accessPoint, boolean edit) {
+        if (mDialog != null) {
+            removeDialog(WifiSettings.WIFI_DIALOG_ID);
+            mDialog = null;
+        }
+
+        // Save the access point and edit mode
+        mDlgAccessPoint = accessPoint.getAccessPoint();
+
+        showDialog(WifiSettings.WIFI_DIALOG_ID);  // 显示提示框
+    }
+    
+    
+    @Override
+    public Dialog onCreateDialog(int dialogId) {
+        switch (dialogId) {
+            case WifiSettings.WIFI_DIALOG_ID:
+                if (mDlgAccessPoint == null) { // For re-launch from saved state
+                    mDlgAccessPoint = new AccessPoint(getActivity(), mAccessPointSavedState);
+                    // Reset the saved access point data
+                    mAccessPointSavedState = null;
+                }
+                mSelectedAccessPoint = mDlgAccessPoint;
+
+                mDialog = new WifiDialog(getActivity(), this, mDlgAccessPoint, WifiConfigUiBase.MODE_VIEW, true /* hide the submit button */); // 显示的模式是 WifiConfigUiBase.MODE_VIEW
+                return mDialog;
+
+        }
+        return super.onCreateDialog(dialogId);
+    }
+
+
+
+
+/packages/apps/Settings/src/com/android/settings/wifi/WifiDialog.java   
+private WifiConfigController mController;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        mView = getLayoutInflater().inflate(R.layout.wifi_dialog, null);  //  对话框的布局文件
+        setView(mView);
+        setInverseBackgroundForced(true);
+        mController = new WifiConfigController(this, mView, mAccessPoint 【NULL】, mMode 【WifiConfigUiBase.MODE_VIEW 】); // 依据 新建了 WifiConfigController  业务交由WifiConfigController实现
+        super.onCreate(savedInstanceState);
+
+        if (mHideSubmitButton) {
+            mController.hideSubmitButton();
+        } else {
+            /* During creation, the submit button can be unavailable to determine
+             * visibility. Right after creation, update button visibility */
+            mController.enableSubmitIfAppropriate();
+        }
+
+        if (mAccessPoint == null) {
+            mController.hideForgetButton();
+        }
+    }
+    
+
+
+/packages/apps/Settings/src/com/android/settings/wifi/WifiConfigController.java
+    public WifiConfigController(WifiConfigUiBase parent, View view, AccessPoint accessPoint,int mode) {
+
+
+
+
+         mConfigUi.setForgetButton(res.getString(R.string.wifi_forget)); 【取消保存】
+        mConfigUi.setCancelButton(res.getString(R.string.wifi_cancel));
+        
+        
+WifiConfiguration getConfig() {  // 模式MODE_VIEW 下 返回的WifiConfiguration 设置为空
+        if (mMode == WifiConfigUiBase.MODE_VIEW) {
+            return null;
+        }
+}
+
+<string name="wifi_cancel" msgid="6763568902542968964">"取消"</string>
+<string name="wifi_forget" msgid="8168174695608386644">"取消保存"</string>
+          
+```
+
+
+
+
+
+## WIFI UA34分析 
+###WIFI UA34 操作列   《系统》>《开发者选项》>《无线显示认证》
+<img src="img/18.png" width = "25%" height="25%"/>
+1. **UA编号**   UA34  
+1. **UA说明**  **《系统》>《开发者选项》>《无线显示认证》的switch开关**
+1. **UA触发函数**  
+1. **UA字符可选值**    
+1. **UA布局及ID**    
+1. **代码Key**     
+1. **代码可选值  **
+1. **数据库Key **   wifi_display_certification_on
+1. **数据库可选值 **     0   1
+1. **SP的Key**  
+1. **SP可选值**  
+1. **UA操作后UI显示类**   
+1. **UA触发函数所在类**    
+---
+```
+
+D:\gitrank\articles-master>adb shell dumpsys window | findstr mCurrentFocus
+  mCurrentFocus=Window{e2b2e4a u0 com.android.settings/com.android.settings.SubSettings}
+  
+
+
+    <plurals name="show_dev_countdown" formatted="false" msgid="7201398282729229649">
+      <item quantity="other">现在只需再执行 <xliff:g id="STEP_COUNT_1">%1$d</xliff:g> 步操作即可进入开发者模式。</item>
+      <item quantity="one">现在只需再执行 <xliff:g id="STEP_COUNT_0">%1$d</xliff:g> 步操作即可进入开发者模式。</item>
+    </plurals>
+    
+<string name="show_dev_already" msgid="2151632240145446227">"您已处于开发者模式，无需进行此操作。"</string>
+ <string name="status_operator" msgid="2274875196954742087">"网络"</string>
+ 
+ 
+/packages/apps/Settings/src/com/android/settings/deviceinfo/BuildNumberPreferenceController.java
+
+
+    @Override
+    public boolean handlePreferenceTreeClick(Preference preference) {
+mDevHitToast = Toast.makeText(mContext,mContext.getResources().getQuantityString(R.plurals.show_dev_countdown, mDevHitCountdown,mDevHitCountdown),Toast.LENGTH_SHORT);
+mDevHitToast.show();  // 显示Toast   还差多少步进入开发者模式
+
+
+mDevHitToast = Toast.makeText(mContext, R.string.show_dev_already,Toast.LENGTH_LONG);
+mDevHitToast.show();
+mMetricsFeatureProvider.action( mContext, MetricsEvent.ACTION_SETTINGS_BUILD_NUMBER_PREF, Pair.create(MetricsEvent.FIELD_SETTINGS_BUILD_NUMBER_DEVELOPER_MODE_ENABLED, 1));
+ }
+        
+....
+
+}
+
+
+
+/packages/apps/Settings/src/com/android/settings/development/DevelopmentSettings.java
+
+
+    private VerifyAppsOverUsbPreferenceController mVerifyAppsOverUsbController;
+    private SwitchPreference mWifiDisplayCertification; // 无线显示认证
+    private SwitchPreference mWifiVerboseLogging;
+    private SwitchPreference mWifiAggressiveHandover;
+    
+    
+    private static final String WIFI_DISPLAY_CERTIFICATION_KEY = "wifi_display_certification";   // 无线显示认证
+    private static final String WIFI_VERBOSE_LOGGING_KEY = "wifi_verbose_logging";   // 启用 wiif详细日志记录功能
+    private static final String WIFI_AGGRESSIVE_HANDOVER_KEY = "wifi_aggressive_handover";  // 主动从WLAN网络切换到移动数据网络
+    private static final String WIFI_ALLOW_SCAN_WITH_TRAFFIC_KEY = "wifi_allow_scan_with_traffic";  //  始终允许WLAN漫游扫描
+    
+    
+    
+    
+    mWifiDisplayCertification = findAndInitSwitchPref(WIFI_DISPLAY_CERTIFICATION_KEY);
+    
+    
+    
+    
+    
+    private void updateWifiDisplayCertificationOptions() {
+        updateSwitchPreference(mWifiDisplayCertification, Settings.Global.getInt( getActivity().getContentResolver(),Settings.Global.WIFI_DISPLAY_CERTIFICATION_ON, 0) != 0);
+    }
+
+    private void writeWifiDisplayCertificationOptions() {
+    // 设置数据库中 wifi_display_certification_on 这个Item的值    默认值为0
+        Settings.Global.putInt(getActivity().getContentResolver(),Settings.Global.WIFI_DISPLAY_CERTIFICATION_ON【"wifi_display_certification_on"】,mWifiDisplayCertification.isChecked() ? 1 : 0);
+    }
+
+
+
+    @Override
+    public boolean onPreferenceTreeClick(Preference preference) {
+    
+    else if (preference == mWifiDisplayCertification) {
+            writeWifiDisplayCertificationOptions();
+        }
+    
+    
+    /frameworks/base/core/java/android/provider/Settings.java
+       public static final String WIFI_DISPLAY_CERTIFICATION_ON ="wifi_display_certification_on";
+               
+```
+
+
+
+###WIFI UA34 代码分析
+
+
+
+
+
+## WIFI UA35分析 
+###WIFI UA35 操作列   《系统》>《开发者选项》>《启用 wiif详细日志记录功能》
+<img src="img/18.png" width = "25%" height="25%"/>
+1. **UA编号**   UA35  
+1. **UA说明**  **《系统》>《开发者选项》>《启用 wiif详细日志记录功能》的switch开关**
+1. **UA触发函数**   WifiManager.enableVerboseLogging 函数
+1. **UA字符可选值**    
+1. **UA布局及ID**    
+1. **代码Key**     
+1. **代码可选值  **
+1. **数据库Key **  
+1. **数据库可选值 **   
+1. **SP的Key**  
+1. **SP可选值**  
+1. **UA操作后UI显示类**   
+1. **UA触发函数所在类**    
+---
+
+
+
+###WIFI UA35 代码分析
+
+```
+
+/packages/apps/Settings/src/com/android/settings/development/DevelopmentSettings.java
+
+
+    private VerifyAppsOverUsbPreferenceController mVerifyAppsOverUsbController;
+    private SwitchPreference mWifiDisplayCertification; // 无线显示认证
+    private SwitchPreference mWifiVerboseLogging; // 启用 wiif详细日志记录功能
+    private SwitchPreference mWifiAggressiveHandover;
+    
+    
+    private static final String WIFI_DISPLAY_CERTIFICATION_KEY = "wifi_display_certification";   // 无线显示认证
+    private static final String WIFI_VERBOSE_LOGGING_KEY = "wifi_verbose_logging";   // 启用 wiif详细日志记录功能
+    private static final String WIFI_AGGRESSIVE_HANDOVER_KEY = "wifi_aggressive_handover";  // 主动从WLAN网络切换到移动数据网络
+    private static final String WIFI_ALLOW_SCAN_WITH_TRAFFIC_KEY = "wifi_allow_scan_with_traffic";  //  始终允许WLAN漫游扫描
+    
+    
+    
+    
+      mWifiVerboseLogging  = findAndInitSwitchPref(WIFI_VERBOSE_LOGGING_KEY);
+    
+    
+    
+
+    private void updateWifiVerboseLoggingOptions() {
+        boolean enabled = mWifiManager.getVerboseLoggingLevel() > 0;
+        updateSwitchPreference(mWifiVerboseLogging, enabled);
+    }
+
+    private void writeWifiVerboseLoggingOptions() {
+        mWifiManager.enableVerboseLogging(mWifiVerboseLogging.isChecked() ? 1 : 0);  // 设置 Wifimanager 中的值
+    }
+
+
+/frameworks/base/wifi/java/android/net/wifi/WifiManager.java    // ▲8  UA分析完后 在 Framework分析
+    public void enableVerboseLogging (int verbose) {
+        try {
+            mService.enableVerboseLogging(verbose);
+        } catch (Exception e) {
+            //ignore any failure here
+            Log.e(TAG, "enableVerboseLogging " + e.toString());
+        }
+    }
+    
+
+    @Override
+    public boolean onPreferenceTreeClick(Preference preference) {
+    
+else if (preference == mWifiVerboseLogging) {
+            writeWifiVerboseLoggingOptions();
+        }
+    
+        
+```
+
+
+
+## WIFI UA36分析 
+###WIFI UA36 操作列   《系统》>《开发者选项》>《主动从WLAN网络切换到移动数据网络》
+<img src="img/18.png" width = "25%" height="25%"/>
+1. **UA编号**   UA35  
+1. **UA说明**  **《系统》>《开发者选项》>《主动从WLAN网络切换到移动数据网络》的switch开关**
+1. **UA触发函数**   WifiManager.enableAggressiveHandover
+1. **UA字符可选值**    
+1. **UA布局及ID**    
+1. **代码Key**     
+1. **代码可选值  **
+1. **数据库Key **  
+1. **数据库可选值 **   
+1. **SP的Key**  
+1. **SP可选值**  
+1. **UA操作后UI显示类**   
+1. **UA触发函数所在类**    
+---
+
+
+
+###WIFI UA36 代码分析
+
+```
+
+/packages/apps/Settings/src/com/android/settings/development/DevelopmentSettings.java
+
+
+    private VerifyAppsOverUsbPreferenceController mVerifyAppsOverUsbController;
+    private SwitchPreference mWifiDisplayCertification; // 无线显示认证
+    private SwitchPreference mWifiVerboseLogging; // 启用 wiif详细日志记录功能
+    private SwitchPreference mWifiAggressiveHandover; // 主动从WLAN网络切换到移动数据网络
+    
+    
+    private static final String WIFI_DISPLAY_CERTIFICATION_KEY = "wifi_display_certification";   // 无线显示认证
+    private static final String WIFI_VERBOSE_LOGGING_KEY = "wifi_verbose_logging";   // 启用 wiif详细日志记录功能
+    private static final String WIFI_AGGRESSIVE_HANDOVER_KEY = "wifi_aggressive_handover";  // 主动从WLAN网络切换到移动数据网络
+    private static final String WIFI_ALLOW_SCAN_WITH_TRAFFIC_KEY = "wifi_allow_scan_with_traffic";  //  始终允许WLAN漫游扫描
+    
+    
+    
+    
+      mWifiAggressiveHandover  = findAndInitSwitchPref(WIFI_AGGRESSIVE_HANDOVER_KEY);
+    
+    
+    
+    private void updateWifiAggressiveHandoverOptions() {
+        boolean enabled = mWifiManager.getAggressiveHandover() > 0;
+        updateSwitchPreference(mWifiAggressiveHandover, enabled);
+    }
+
+    private void writeWifiAggressiveHandoverOptions() {
+        mWifiManager.enableAggressiveHandover(mWifiAggressiveHandover.isChecked() ? 1 : 0);  //  调用 WIFIManager的enableAggressiveHandover 方法 ▲9  UA分析完后 在 Framework分析
+    }
+
+
+/frameworks/base/wifi/java/android/net/wifi/WifiManager.java    // ▲8  UA分析完后 在 Framework分析
+    public void enableVerboseLogging (int verbose) {
+        try {
+            mService.enableVerboseLogging(verbose);
+        } catch (Exception e) {
+            //ignore any failure here
+            Log.e(TAG, "enableVerboseLogging " + e.toString());
+        }
+    }
+    
+
+    @Override
+    public boolean onPreferenceTreeClick(Preference preference) {
+    
+else if (preference == mWifiVerboseLogging) {
+            writeWifiVerboseLoggingOptions();
+        }
+    
+        
+```
+
+
+
+
+
+## WIFI UA37分析 
+###WIFI UA37 操作列   《系统》>《开发者选项》>《始终允许WLAN漫游扫描》
+<img src="img/18.png" width = "25%" height="25%"/>
+1. **UA编号**   UA35  
+1. **UA说明**  **《系统》>《开发者选项》>《始终允许WLAN漫游扫描》的switch开关**
+1. **UA触发函数**  
+1. **UA字符可选值**    
+1. **UA布局及ID**    
+1. **代码Key**     
+1. **代码可选值  **
+1. **数据库Key **  
+1. **数据库可选值 **   
+1. **SP的Key**  
+1. **SP可选值**  
+1. **UA操作后UI显示类**   
+1. **UA触发函数所在类**    
+---
+
+
+
+###WIFI UA37 代码分析
+
+```
+
+/packages/apps/Settings/src/com/android/settings/development/DevelopmentSettings.java
+
+
+    private SwitchPreference mWifiDisplayCertification; // 无线显示认证
+    private SwitchPreference mWifiVerboseLogging; // 启用 wiif详细日志记录功能
+    private SwitchPreference mWifiAggressiveHandover; // 主动从WLAN网络切换到移动数据网络
+    private SwitchPreference mWifiAllowScansWithTraffic;    //  始终允许WLAN漫游扫描
+    
+    private static final String WIFI_DISPLAY_CERTIFICATION_KEY = "wifi_display_certification";   // 无线显示认证
+    private static final String WIFI_VERBOSE_LOGGING_KEY = "wifi_verbose_logging";   // 启用 wiif详细日志记录功能
+    private static final String WIFI_AGGRESSIVE_HANDOVER_KEY = "wifi_aggressive_handover";  // 主动从WLAN网络切换到移动数据网络
+    private static final String WIFI_ALLOW_SCAN_WITH_TRAFFIC_KEY = "wifi_allow_scan_with_traffic";  //  始终允许WLAN漫游扫描
+    
+    
+    
+    
+mWifiAllowScansWithTraffic = findAndInitSwitchPref(WIFI_ALLOW_SCAN_WITH_TRAFFIC_KEY);
+    
+
+    private void updateWifiAllowScansWithTrafficOptions() {
+        boolean enabled = mWifiManager.getAllowScansWithTraffic() > 0;
+        updateSwitchPreference(mWifiAllowScansWithTraffic, enabled);
+    }
+
+    private void writeWifiAllowScansWithTrafficOptions() {
+        mWifiManager.setAllowScansWithTraffic(mWifiAllowScansWithTraffic.isChecked() ? 1 : 0);  //  调用 WIFIManager的 setAllowScansWithTraffic 方法 ▲10  UA分析完后 在 Framework分析
+    }
+    
+
+
+    @Override
+    public boolean onPreferenceTreeClick(Preference preference) {
+    
+else if (preference == mWifiAllowScansWithTraffic) {
+            writeWifiAllowScansWithTrafficOptions();
+        }
+    
+        
 ```
